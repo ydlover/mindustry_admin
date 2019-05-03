@@ -96,12 +96,12 @@ type User struct {
 	isSupperAdmin bool
 }
 type Mindustry struct {
-	name   string
-	admins []string
-	users  map[string]User
-	adminCmds [string]
-	superAdminCmds [string]
-	serverOutR *regexp.Regexp
+	name           string
+	admins         []string
+	users          map[string]User
+	adminCmds      []string
+	superAdminCmds []string
+	serverOutR     *regexp.Regexp
 }
 
 func (this *Mindustry) loadConfig() {
@@ -238,13 +238,15 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 				return
 			}
 			sayBody := cmdBody[index+1:]
-			if(strings.HasPrefix(sayBody,"/")){
+			if strings.HasPrefix(sayBody, "\\") {
+				/*todo
 				temps := strings.Split(sayBody, " ")
-				if(len(temps)>1 && this.adminCmds[temps[0]] != "" ){
+				if len(temps) > 1 && this.adminCmds[temps[0]] != "" {
 					cmd := temps[0][1:]
 					fmt.Printf("proc user[%s] cmd :%s", userName, cmd)
 					return
 				}
+				*/
 			}
 			fmt.Printf("user[%s] say:%s", userName, cmdBody[index+1:])
 		}
