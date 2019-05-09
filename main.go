@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -96,6 +98,7 @@ type Mindustry struct {
 	users      map[string]User
 	serverOutR *regexp.Regexp
 	cmds       map[string]Cmd
+	port       int
 }
 
 func (this *Mindustry) loadConfig() {
@@ -152,6 +155,11 @@ func (this *Mindustry) loadConfig() {
 			if err == nil {
 				name := strings.TrimSpace(optionValue)
 				this.name = name
+			}
+			optionValue, err = cfg.String("server", "jarPath")
+			if err == nil {
+				jarPath := strings.TrimSpace(optionValue)
+				this.jarPath = jarPath
 			}
 		}
 	}
@@ -247,7 +255,13 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 		} else {
 			info := fmt.Sprintf("proc user[%s] cmd :%s", userName, cmdName)
 			say(in, info)
-			execCmd(in, userInput)
+			if strings.EqualFold(userInput, "help") {
+				helpInfo := "support cmds:\n"
+				helpInfo += "admin cmds:"
+				say(in, helpInfo)
+			} else {
+				execCmd(in, userInput)
+			}
 		}
 
 	} else {
@@ -276,7 +290,7 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 			if userName == "Server" {
 				return
 			}
-			sayBody := cmdBody[index+1:]
+			sayBody := strings.TrimSpace(cmdBody[index+1:])
 			if strings.HasPrefix(sayBody, "\\") {
 				this.procUsrCmd(in, userName, sayBody[1:])
 			} else {
@@ -299,6 +313,7 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 		userName := strings.TrimSpace(cmdBody[:len(cmdBody)-len(USER_DISCONNECTED_KEY)])
 		this.offlineUser(userName)
 	} else if strings.HasPrefix(cmdBody, SERVER_READY_KEY) {
+		execCmd(in, "port "+strconv.Itoa(this.port))
 		execCmd(in, "host Fortress")
 	} else {
 
@@ -309,7 +324,10 @@ func (this *Mindustry) run() {
 	execCommand("java", para, this)
 }
 func main() {
+	port := flag.Int("port", 6567, "Input port")
+	flag.Parse()
 	mindustry := Mindustry{}
 	mindustry.init()
+	mindustry.port = *port
 	mindustry.run()
 }
