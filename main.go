@@ -99,6 +99,7 @@ type Mindustry struct {
 	serverOutR *regexp.Regexp
 	cmds       map[string]Cmd
 	port       int
+	mode       string
 }
 
 func (this *Mindustry) loadConfig() {
@@ -314,20 +315,30 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 		this.offlineUser(userName)
 	} else if strings.HasPrefix(cmdBody, SERVER_READY_KEY) {
 		execCmd(in, "port "+strconv.Itoa(this.port))
-		execCmd(in, "host Fortress")
+		if this.mode == "mission" {
+			execCmd(in, "host 8 "+this.mode)
+		} else {
+			execCmd(in, "host Fortress "+this.mode)
+		}
 	} else {
 
 	}
 }
 func (this *Mindustry) run() {
 	var para = []string{"-jar", this.jarPath}
-	execCommand("java", para, this)
+	for {
+		execCommand("java", para, this)
+		log.Printf("server crash,wait(10s) reboot!\n")
+		time.Sleep(time.Duration(10) * time.Second)
+	}
 }
 func main() {
+	mode := flag.String("mode", "survival", "mode:survival,attack,sandbox,pvp,mission")
 	port := flag.Int("port", 6567, "Input port")
 	flag.Parse()
 	mindustry := Mindustry{}
 	mindustry.init()
+	mindustry.mode = *mode
 	mindustry.port = *port
 	mindustry.run()
 }
