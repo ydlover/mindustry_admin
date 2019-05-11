@@ -257,9 +257,11 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 			info := fmt.Sprintf("proc user[%s] cmd :%s", userName, cmdName)
 			say(in, info)
 			if strings.EqualFold(userInput, "help") {
-				helpInfo := "support cmds:\n"
-				helpInfo += "admin cmds:"
-				say(in, helpInfo)
+				say(in, "support cmds:")
+				say(in, "admin cmds:")
+			} else if strings.EqualFold(userInput, "gameover") {
+				execCmd(in, "reloadmaps")
+				execCmd(in, userInput)
 			} else {
 				execCmd(in, userInput)
 			}

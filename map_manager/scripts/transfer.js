@@ -161,8 +161,10 @@ $(function () {
 	}
 
 	function checkFileName(fileName) {
-		if (!fileName || !fileName.toLowerCase().match('(jpg|png|gif|epub|txt|pdf)$')) {
-			return STRINGS.UNSUPPORTED_FILE_TYPE;
+        var suffixIndex=fileName.lastIndexOf(".");  
+        var suffix=fileName.substring(suffixIndex+1).toUpperCase();  
+        if(suffix!="MMAP"){  
+            return STRINGS.UNSUPPORTED_FILE_TYPE;
 		}
 
 		var arr = fileName.split("\\");
@@ -198,7 +200,7 @@ $(function () {
 		}
 	}
 	function uploadFiles(files) {
-		var uploader = getHtml5Uploader();
+        var uploader = getHtml5Uploader();
 		if (files.length == 1) {
 			var msg = checkFileName(files[0].name || files[0].fileName);
 			if (msg) {
