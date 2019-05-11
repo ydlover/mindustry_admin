@@ -332,10 +332,18 @@ func (this *Mindustry) run() {
 		time.Sleep(time.Duration(10) * time.Second)
 	}
 }
+func startMapUpServer(port int) {
+	go func(serverPort int) {
+		StartFileUpServer(serverPort)
+	}(port)
+}
 func main() {
 	mode := flag.String("mode", "survival", "mode:survival,attack,sandbox,pvp,mission")
 	port := flag.Int("port", 6567, "Input port")
+	map_port := flag.Int("up", 6569, "map up port")
 	flag.Parse()
+
+	startMapUpServer(*map_port)
 	mindustry := Mindustry{}
 	mindustry.init()
 	mindustry.mode = *mode

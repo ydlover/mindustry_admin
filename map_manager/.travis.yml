@@ -1,0 +1,10 @@
+language: go
+
+go:
+  - 1.8.3
+  - tip
+
+install:
+  - go get -d https://github.com/fileuploaddemo/FileUploadGo/...
+script:
+  - go build ./...
