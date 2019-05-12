@@ -92,15 +92,19 @@ type Cmd struct {
 }
 
 type Mindustry struct {
-	name         string
-	admins       []string
-	jarPath      string
-	users        map[string]User
-	serverOutR   *regexp.Regexp
-	cfgAdminCmds string
-	cmds         map[string]Cmd
-	port         int
-	mode         string
+	name          string
+	admins        []string
+	jarPath       string
+	users         map[string]User
+	serverOutR    *regexp.Regexp
+	cfgAdminCmds  string
+	cmds          map[string]Cmd
+	port          int
+	mode          string
+	cmdFailReason string
+	currProcCmd   string
+	playCnt       int
+	maps          []string
 }
 
 func (this *Mindustry) loadConfig() {
@@ -119,7 +123,6 @@ func (this *Mindustry) loadConfig() {
 				optionValue := strings.TrimSpace(optionValue)
 				admins := strings.Split(optionValue, ",")
 				log.Printf("[ini]found admins:%v\n", admins)
-				this.cfgAdminCmds = optionValue
 				for _, admin := range admins {
 					this.addUser(admin)
 					this.addAdmin(admin)
@@ -150,6 +153,7 @@ func (this *Mindustry) loadConfig() {
 				optionValue := strings.TrimSpace(optionValue)
 				cmds := strings.Split(optionValue, ",")
 				log.Printf("[ini]found adminCmds:%v\n", cmds)
+				this.cfgAdminCmds = optionValue
 				for _, cmd := range cmds {
 					this.cmds[cmd] = Cmd{cmd, 1}
 				}
@@ -258,6 +262,10 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 			return
 		} else {
 			info := fmt.Sprintf("proc user[%s] cmd :%s", userName, cmdName)
+			this.currProcCmd = cmdName
+			if cmdName == "maps" {
+				this.maps = this.maps[0:0]
+			}
 			say(in, info)
 			if strings.EqualFold(userInput, "help") {
 				say(in, "support cmds:"+this.cfgAdminCmds)
@@ -277,6 +285,16 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 				execCmd(in, "stop")
 				time.Sleep(time.Duration(5) * time.Second)
 				execCmd(in, userInput)
+			} else if strings.HasPrefix(userInput, "admin ") {
+				targetName := userInput[len("admin"):]
+				targetName = strings.TrimSpace(targetName)
+				if targetName == "" {
+					say(in, "Please input admin name")
+				} else {
+					this.addAdmin(targetName)
+					execCmd(in, userInput)
+					say(in, "admin ["+targetName+"] is add!")
+				}
 			} else {
 				execCmd(in, userInput)
 			}
@@ -287,20 +305,63 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 		say(in, info)
 	}
 }
+func (this *Mindustry) multiLineRsltCmdComplete(in io.WriteCloser, line string) bool {
+	index := -1
+	if this.currProcCmd == "maps" {
+		mapNameEndIndex := -1
+		index = strings.Index(line, ": Custom /")
+		if index >= 0 {
+			mapNameEndIndex = index
+		}
+		index = strings.Index(line, ": Default /")
+		if index >= 0 {
+			mapNameEndIndex = index
+		}
+		if mapNameEndIndex >= 0 {
+			this.maps = append(this.maps, strings.TrimSpace(line[:mapNameEndIndex]))
+		}
+	}
+	if strings.Index(line, "Map directory:") >= 0 {
+		say(in, "maps:"+strings.Join(this.maps, ","))
+		return true
+	}
+	index = strings.Index(line, "Players:")
+	if index >= 0 {
+		countStr := strings.TrimSpace(line[index+len("Players:")+1:])
+		if count, ok := strconv.Atoi(countStr); ok == nil {
+			this.playCnt = count
+		}
+		return true
+	}
+	return false
+}
 
 const USER_CONNECTED_KEY string = " has connected."
 const USER_DISCONNECTED_KEY string = " has disconnected."
 const SERVER_INFO_LOG string = "[INFO] "
+const SERVER_ERR_LOG string = "[ERR!] "
 const SERVER_READY_KEY string = "Server loaded. Type 'help' for help."
 
 func (this *Mindustry) output(line string, in io.WriteCloser) {
 
-	index := strings.Index(line, SERVER_INFO_LOG)
-	if index < 0 {
+	index := strings.Index(line, SERVER_ERR_LOG)
+	if index >= 0 {
+		this.cmdFailReason = line
 		return
 	}
 
+	index = strings.Index(line, SERVER_INFO_LOG)
+	if index < 0 {
+		return
+	}
 	cmdBody := strings.TrimSpace(line[index+len(SERVER_INFO_LOG):])
+	if this.currProcCmd == "maps" || this.currProcCmd == "status" {
+		say(in, line)
+		if this.multiLineRsltCmdComplete(in, cmdBody) {
+			this.currProcCmd = ""
+		}
+		return
+	}
 	index = strings.Index(cmdBody, ":")
 	if index > -1 {
 		userName := strings.TrimSpace(cmdBody[:index])
@@ -312,7 +373,7 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 			if strings.HasPrefix(sayBody, "\\") {
 				this.procUsrCmd(in, userName, sayBody[1:])
 			} else {
-				fmt.Printf("%s : %s\n", userName, sayBody)
+				//fmt.Printf("%s : %s\n", userName, sayBody)
 			}
 		}
 	}
