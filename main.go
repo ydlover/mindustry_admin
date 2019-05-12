@@ -135,15 +135,6 @@ func (this *Mindustry) loadConfig() {
 					this.addSuperAdmin(supAdmin)
 				}
 			}
-			optionValue, err = cfg.String("server", "adminCmds")
-			if err == nil {
-				optionValue := strings.TrimSpace(optionValue)
-				cmds := strings.Split(optionValue, ",")
-				log.Printf("[ini]found adminCmds:%v\n", cmds)
-				for _, cmd := range cmds {
-					this.cmds[cmd] = Cmd{cmd, 1}
-				}
-			}
 			optionValue, err = cfg.String("server", "superAdminCmds")
 			if err == nil {
 				optionValue := strings.TrimSpace(optionValue)
@@ -151,6 +142,16 @@ func (this *Mindustry) loadConfig() {
 				log.Printf("[ini]found superAdminCmds:%v\n", cmds)
 				for _, cmd := range cmds {
 					this.cmds[cmd] = Cmd{cmd, 9}
+				}
+			}
+
+			optionValue, err = cfg.String("server", "adminCmds")
+			if err == nil {
+				optionValue := strings.TrimSpace(optionValue)
+				cmds := strings.Split(optionValue, ",")
+				log.Printf("[ini]found adminCmds:%v\n", cmds)
+				for _, cmd := range cmds {
+					this.cmds[cmd] = Cmd{cmd, 1}
 				}
 			}
 
@@ -265,6 +266,7 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 				execCmd(in, userInput)
 			} else if strings.HasPrefix(userInput, "host ") {
 				say(in, "服务器直接更换地图或更换模式需要重启，服务器即将离线，请10秒后重新连接!")
+				execCmd(in, "reloadmaps")
 				time.Sleep(time.Duration(5) * time.Second)
 				execCmd(in, "stop")
 				time.Sleep(time.Duration(5) * time.Second)
@@ -321,7 +323,11 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 
 		if this.users[userName].isAdmin {
 			time.Sleep(1 * time.Second)
-			say(in, "Welcome admin:"+userName)
+			if this.users[userName].isSupperAdmin {
+				say(in, "Welcome Super admin:::::::::::::::: "+userName)
+			} else {
+				say(in, "Welcome admin:"+userName)
+			}
 			execCmd(in, "admin "+userName)
 		}
 

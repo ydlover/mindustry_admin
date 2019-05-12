@@ -7,10 +7,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 const FILE_PATH = "./config/maps/"
@@ -40,6 +42,13 @@ func StartFileUpServer(port int) {
 	}
 
 	fmt.Println("file up server listening on: http://0.0.0.0:" + strconv.Itoa(port))
+	go func() {
+		c := make(chan os.Signal)
+		signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGUSR1, syscall.SIGUSR2)
+		s := <-c
+		server.Close()
+		fmt.Printf("file up server shutdownf%s", s)
+	}()
 	server.ListenAndServe()
 }
 
