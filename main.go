@@ -297,7 +297,7 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 			if strings.HasPrefix(sayBody, "\\") {
 				this.procUsrCmd(in, userName, sayBody[1:])
 			} else {
-				fmt.Printf("%s : %s", userName, sayBody)
+				fmt.Printf("%s : %s\n", userName, sayBody)
 			}
 		}
 	}
