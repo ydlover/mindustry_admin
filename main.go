@@ -92,14 +92,15 @@ type Cmd struct {
 }
 
 type Mindustry struct {
-	name       string
-	admins     []string
-	jarPath    string
-	users      map[string]User
-	serverOutR *regexp.Regexp
-	cmds       map[string]Cmd
-	port       int
-	mode       string
+	name         string
+	admins       []string
+	jarPath      string
+	users        map[string]User
+	serverOutR   *regexp.Regexp
+	cfgAdminCmds string
+	cmds         map[string]Cmd
+	port         int
+	mode         string
 }
 
 func (this *Mindustry) loadConfig() {
@@ -118,6 +119,7 @@ func (this *Mindustry) loadConfig() {
 				optionValue := strings.TrimSpace(optionValue)
 				admins := strings.Split(optionValue, ",")
 				log.Printf("[ini]found admins:%v\n", admins)
+				this.cfgAdminCmds = optionValue
 				for _, admin := range admins {
 					this.addUser(admin)
 					this.addAdmin(admin)
@@ -257,10 +259,21 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 			info := fmt.Sprintf("proc user[%s] cmd :%s", userName, cmdName)
 			say(in, info)
 			if strings.EqualFold(userInput, "help") {
-				say(in, "support cmds:")
-				say(in, "admin cmds:")
+				say(in, "support cmds:"+this.cfgAdminCmds)
 			} else if strings.EqualFold(userInput, "gameover") {
 				execCmd(in, "reloadmaps")
+				execCmd(in, userInput)
+			} else if strings.HasPrefix(userInput, "host ") {
+				say(in, "服务器直接更换地图或更换模式需要重启，服务器即将离线，请10秒后重新连接!")
+				time.Sleep(time.Duration(5) * time.Second)
+				execCmd(in, "stop")
+				time.Sleep(time.Duration(5) * time.Second)
+				execCmd(in, userInput)
+			} else if strings.HasPrefix(userInput, "load ") {
+				say(in, "服务器load存档需要重启，服务器即将离线，请10秒后重新连接!")
+				time.Sleep(time.Duration(5) * time.Second)
+				execCmd(in, "stop")
+				time.Sleep(time.Duration(5) * time.Second)
 				execCmd(in, userInput)
 			} else {
 				execCmd(in, userInput)
