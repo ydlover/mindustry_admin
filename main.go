@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/larspensjo/config"
+	"github.com/robfig/cron"
 )
 
 const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
@@ -54,7 +55,14 @@ func execCommand(commandName string, params []string, handle CallBack) error {
 			cmd.Process.Kill()
 		}
 	}(cmd)
-
+	c := cron.New()
+	spec := "0 0 * * * ?"
+	c.AddFunc(spec, func() {
+		hour := time.Now().Hour()
+		execCmd(stdin, "save "+strconv.Itoa(hour))
+		say(stdin, "auto save "+strconv.Itoa(hour))
+	})
+	c.Start()
 	go func(cmd *exec.Cmd) {
 		reader := bufio.NewReader(os.Stdin)
 		for {
