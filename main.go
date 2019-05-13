@@ -261,9 +261,25 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 			say(in, info)
 			return
 		} else {
-			info := fmt.Sprintf("proc user[%s] cmd :%s", userName, cmdName)
-			this.currProcCmd = cmdName
+			if this.currProcCmd != "" {
+				say(in, "Command "+this.currProcCmd+" is executing, please wait for execution to complete!")
+				return
+			}
+
+			info := fmt.Sprintf("proc user[%s] cmd :%s", userName, userInput)
+			if cmdName == "maps" || cmdName == "status" {
+				go func() {
+					timer := time.NewTimer(time.Duration(5) * time.Second)
+					<-timer.C
+					if this.currProcCmd != "" {
+						say(in, "Command "+this.currProcCmd+" timeout!")
+						this.currProcCmd = ""
+					}
+				}()
+				this.currProcCmd = cmdName
+			}
 			if cmdName == "maps" {
+				execCmd(in, "reloadmaps")
 				this.maps = this.maps[0:0]
 			}
 			say(in, info)
@@ -272,13 +288,62 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 			} else if strings.EqualFold(userInput, "gameover") {
 				execCmd(in, "reloadmaps")
 				execCmd(in, userInput)
-			} else if strings.HasPrefix(userInput, "host ") {
+			} else if strings.HasPrefix(userInput, "host") {
+				mapName := ""
+				temps := strings.Split(userInput, " ")
+				if len(temps) < 2 {
+					say(in, "Command ("+userInput+") length invalid!")
+					return
+				}
+				inputCmd := strings.TrimSpace(temps[0])
+				inputMap := strings.TrimSpace(temps[1])
+				inputMode := ""
+				if len(temps) > 2 {
+					inputMode = strings.TrimSpace(temps[2])
+				}
+				if inputCmd == "hostx" {
+					inputIndex := 0
+					var err error = nil
+					if inputIndex, err = strconv.Atoi(inputMap); err != nil {
+						say(in, "Command ("+userInput+") invalid,please input number!")
+						return
+					}
+					if inputIndex < 0 || inputIndex >= len(this.maps) {
+
+						say(in, "Command ("+userInput+") invalid,mapIndex err!")
+						return
+					}
+					mapName = this.maps[inputIndex]
+				} else if inputCmd == "host" {
+					isFind := false
+					for _, name := range this.maps {
+						if name == inputMap {
+							isFind = true
+							break
+						}
+					}
+					if !isFind {
+						say(in, "Command ("+userInput+") invalid,map not found!")
+						return
+					}
+				} else {
+					say(in, "Command ("+userInput+") invalid!")
+					return
+				}
+				if inputMode != "pvp" && inputMode != "attack" && inputMode != "" {
+					say(in, "Command ("+userInput+") invalid,mode  err!")
+					return
+				}
 				say(in, "服务器直接更换地图或更换模式需要重启，服务器即将离线，请10秒后重新连接!")
 				execCmd(in, "reloadmaps")
 				time.Sleep(time.Duration(5) * time.Second)
 				execCmd(in, "stop")
 				time.Sleep(time.Duration(5) * time.Second)
-				execCmd(in, userInput)
+				if inputMode == "" {
+					execCmd(in, "host "+mapName)
+				} else {
+					execCmd(in, "host "+mapName+" "+inputMode)
+				}
 			} else if strings.HasPrefix(userInput, "load ") {
 				say(in, "服务器load存档需要重启，服务器即将离线，请10秒后重新连接!")
 				time.Sleep(time.Duration(5) * time.Second)
@@ -322,7 +387,14 @@ func (this *Mindustry) multiLineRsltCmdComplete(in io.WriteCloser, line string) 
 		}
 	}
 	if strings.Index(line, "Map directory:") >= 0 {
-		say(in, "maps:"+strings.Join(this.maps, ","))
+		mapsInfo := "maps:"
+		for index, name := range this.maps {
+			if mapsInfo != "maps:" {
+				mapsInfo += ","
+			}
+			mapsInfo += ("[" + strconv.Itoa(index) + "]" + name)
+		}
+		say(in, mapsInfo)
 		return true
 	}
 	index = strings.Index(line, "Players:")
@@ -356,7 +428,7 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 	}
 	cmdBody := strings.TrimSpace(line[index+len(SERVER_INFO_LOG):])
 	if this.currProcCmd == "maps" || this.currProcCmd == "status" {
-		say(in, line)
+		//say(in, line)
 		if this.multiLineRsltCmdComplete(in, cmdBody) {
 			this.currProcCmd = ""
 		}
