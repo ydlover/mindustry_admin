@@ -14,7 +14,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/larspensjo/config"
@@ -50,7 +49,7 @@ func execCommand(commandName string, params []string, handle CallBack) error {
 	cmd.Start()
 	go func(cmd *exec.Cmd) {
 		c := make(chan os.Signal)
-		signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGUSR1, syscall.SIGUSR2)
+		signal.Notify(c, os.Interrupt, os.Kill)
 		s := <-c
 		if cmd.Process != nil {
 			log.Printf("sub process exit:%s", s)
@@ -264,17 +263,18 @@ func say(in io.WriteCloser, cmd string) {
 func checkSlotValid(slot string) bool {
 	files, _ := ioutil.ReadDir("./config/saves")
 	for _, f := range files {
-		if f.Name() == slot +".msav"{
+		if f.Name() == slot+".msav" {
 			return true
+		}
 	}
 	return false
 }
 func getSlotList() string {
-	slotList : = []string{}
+	slotList := []string{}
 	files, _ := ioutil.ReadDir("./config/saves")
 	for _, f := range files {
-		if strings.HasSuffix(f.Name(),".msav"{
-			slotList = append(slotList,f.Name()[:len(f.Name())-len(".msav")]
+		if strings.HasSuffix(f.Name(), ".msav") {
+			slotList = append(slotList, f.Name()[:len(f.Name())-len(".msav")])
 		}
 	}
 	return strings.Join(slotList, ",")
@@ -362,7 +362,7 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 					say(in, "Command ("+userInput+") invalid,mode  err!")
 					return
 				}
-				say(in, "服务器直接更换地图或更换模式需要重启，服务器即将离线，请10秒后重新连接!")
+				say(in, "The server needs to be restarted. Please wait 10 seconds to log in!")
 				execCmd(in, "reloadmaps")
 				time.Sleep(time.Duration(5) * time.Second)
 				execCmd(in, "stop")
@@ -373,18 +373,18 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 					execCmd(in, "host "+mapName+" "+inputMode)
 				}
 			} else if strings.HasPrefix(userInput, "slots") {
-				say(in, "slots:"+ getSlotList())
+				say(in, "slots:"+getSlotList())
 			} else if strings.HasPrefix(userInput, "save") {
 				targetSlot := ""
 				if userInput == "save" {
 					minute := time.Now().Minute()
-					targetSlot = fmt.Sprintf("%d%2d%2d%2d", time.Now().Day(), time.Now().Hour(), minute/10*10)
+					targetSlot = fmt.Sprintf("%d%02d%02d", time.Now().Day(), time.Now().Hour(), minute/10*10)
 				} else {
-					targetSlot := userInput[len("save"):]
+					targetSlot = userInput[len("save"):]
 					targetSlot = strings.TrimSpace(targetSlot)
 				}
-				if count, ok := strconv.Atoi(targetSlot); ok != nil {
-					say(in, "slot invalid,please input number,ie:save 111")
+				if _, ok := strconv.Atoi(targetSlot); ok != nil {
+					say(in, "slot invalid:"+targetSlot+",please input number,ie:save 111")
 					return
 				}
 				execCmd(in, "save "+targetSlot)
@@ -392,11 +392,11 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 			} else if strings.HasPrefix(userInput, "load ") {
 				targetSlot := userInput[len("load"):]
 				targetSlot = strings.TrimSpace(targetSlot)
-				if !checkSlotValid(targetSlot){
+				if !checkSlotValid(targetSlot) {
 					say(in, "load slot not exist,please check input:"+targetSlot)
 					return
 				}
-				say(in, "服务器load存档需要重启，服务器即将离线，请10秒后重新连接!")
+				say(in, "The server needs to be restarted. Please wait 10 seconds to log in.!")
 				time.Sleep(time.Duration(5) * time.Second)
 				execCmd(in, "stop")
 				time.Sleep(time.Duration(5) * time.Second)
