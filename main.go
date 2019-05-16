@@ -273,6 +273,9 @@ func getSlotList() string {
 	slotList := []string{}
 	files, _ := ioutil.ReadDir("./config/saves")
 	for _, f := range files {
+		if strings.Count(f.Name(), "backup") > 0 {
+			continue
+		}
 		if strings.HasSuffix(f.Name(), ".msav") {
 			slotList = append(slotList, f.Name()[:len(f.Name())-len(".msav")])
 		}
