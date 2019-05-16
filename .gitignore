@@ -2,3 +2,4 @@ config/
 logs/
 mindustry_admin*
 server-release.jar
+release*.zip
