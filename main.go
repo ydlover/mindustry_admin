@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
@@ -19,6 +20,8 @@ import (
 	"github.com/larspensjo/config"
 	"github.com/robfig/cron"
 )
+
+var _VERSION_ = "1.0"
 
 const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
 
@@ -37,7 +40,6 @@ func execCommand(commandName string, params []string, handle CallBack) error {
 	fmt.Println(cmd.Args)
 	stdout, outErr := cmd.StdoutPipe()
 	stdin, inErr := cmd.StdinPipe()
-	//cmd.Stdin = os.Stdin
 	if outErr != nil {
 		return outErr
 	}
@@ -259,6 +261,24 @@ func say(in io.WriteCloser, cmd string) {
 	data := []byte("say " + cmd + "\n")
 	in.Write(data)
 }
+func checkSlotValid(slot string) bool {
+	files, _ := ioutil.ReadDir("./config/saves")
+	for _, f := range files {
+		if f.Name() == slot +".msav"{
+			return true
+	}
+	return false
+}
+func getSlotList() string {
+	slotList : = []string{}
+	files, _ := ioutil.ReadDir("./config/saves")
+	for _, f := range files {
+		if strings.HasSuffix(f.Name(),".msav"{
+			slotList = append(slotList,f.Name()[:len(f.Name())-len(".msav")]
+		}
+	}
+	return strings.Join(slotList, ",")
+}
 func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput string) {
 	temps := strings.Split(userInput, " ")
 	cmdName := temps[0]
@@ -352,7 +372,30 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 				} else {
 					execCmd(in, "host "+mapName+" "+inputMode)
 				}
+			} else if strings.HasPrefix(userInput, "slots") {
+				say(in, "slots:"+ getSlotList())
+			} else if strings.HasPrefix(userInput, "save") {
+				targetSlot := ""
+				if userInput == "save" {
+					minute := time.Now().Minute()
+					targetSlot = fmt.Sprintf("%d%2d%2d%2d", time.Now().Day(), time.Now().Hour(), minute/10*10)
+				} else {
+					targetSlot := userInput[len("save"):]
+					targetSlot = strings.TrimSpace(targetSlot)
+				}
+				if count, ok := strconv.Atoi(targetSlot); ok != nil {
+					say(in, "slot invalid,please input number,ie:save 111")
+					return
+				}
+				execCmd(in, "save "+targetSlot)
+				say(in, "save slot("+targetSlot+") success!")
 			} else if strings.HasPrefix(userInput, "load ") {
+				targetSlot := userInput[len("load"):]
+				targetSlot = strings.TrimSpace(targetSlot)
+				if !checkSlotValid(targetSlot){
+					say(in, "load slot not exist,please check input:"+targetSlot)
+					return
+				}
 				say(in, "服务器load存档需要重启，服务器即将离线，请10秒后重新连接!")
 				time.Sleep(time.Duration(5) * time.Second)
 				execCmd(in, "stop")
@@ -504,6 +547,7 @@ func main() {
 	port := flag.Int("port", 6567, "Input port")
 	map_port := flag.Int("up", 6569, "map up port")
 	flag.Parse()
+	log.Printf("version:%s!\n", _VERSION_)
 
 	startMapUpServer(*map_port)
 	mindustry := Mindustry{}
