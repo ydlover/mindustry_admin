@@ -1,4 +1,4 @@
-export TAG=1.0 
+export TAG=1.4 
 
 gox -osarch="windows/amd64"
 gox -osarch="linux/386"
