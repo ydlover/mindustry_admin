@@ -33,8 +33,7 @@ func StripColor(str string) string {
 type CallBack interface {
 	output(line string, in io.WriteCloser)
 }
-
-var UserCmdProcHandle func(in io.WriteCloser, userName string, userInput string)
+type UserCmdProcHandle func(in io.WriteCloser, userName string, userInput string)
 
 func execCommand(commandName string, params []string, handle CallBack) error {
 	cmd := exec.Command(commandName, params...)
@@ -103,21 +102,20 @@ type Cmd struct {
 }
 
 type Mindustry struct {
-	name          string
-	admins        []string
-	jarPath       string
-	users         map[string]User
-	serverOutR    *regexp.Regexp
-	cfgAdminCmds  string
-	cmds          map[string]Cmd
-	port          int
-	mode          string
-	cmdFailReason string
-	currProcCmd   string
-	playCnt       int
-	maps          []string
-	userCmdProcHandles  map[string]UserCmdProcHandle
-	
+	name               string
+	admins             []string
+	jarPath            string
+	users              map[string]User
+	serverOutR         *regexp.Regexp
+	cfgAdminCmds       string
+	cmds               map[string]Cmd
+	port               int
+	mode               string
+	cmdFailReason      string
+	currProcCmd        string
+	playCnt            int
+	maps               []string
+	userCmdProcHandles map[string]UserCmdProcHandle
 }
 
 func (this *Mindustry) loadConfig() {
@@ -206,6 +204,7 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["load"] = this.proc_load
 	this.userCmdProcHandles["maps"] = this.proc_mapsOrStatus
 	this.userCmdProcHandles["status"] = this.proc_mapsOrStatus
+	this.userCmdProcHandles["slots"] = this.proc_slots
 
 }
 func (this *Mindustry) addUser(name string) {
@@ -299,6 +298,9 @@ func getSlotList() string {
 }
 
 func (this *Mindustry) proc_mapsOrStatus(in io.WriteCloser, userName string, userInput string) {
+	temps := strings.Split(userInput, " ")
+	cmdName := temps[0]
+
 	if cmdName == "maps" || cmdName == "status" {
 		go func() {
 			timer := time.NewTimer(time.Duration(5) * time.Second)
@@ -313,6 +315,7 @@ func (this *Mindustry) proc_mapsOrStatus(in io.WriteCloser, userName string, use
 	if cmdName == "maps" {
 		execCmd(in, "reloadmaps")
 		this.maps = this.maps[0:0]
+		execCmd(in, "maps")
 	}
 }
 func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput string) {
@@ -444,10 +447,9 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 
 			info := fmt.Sprintf("proc user[%s] cmd :%s", userName, userInput)
 			say(in, info)
-			if this.userCmdProcHandles[cmdName]
 			if handleFunc, ok := this.userCmdProcHandles[cmdName]; ok {
 				handleFunc(in, userName, userInput)
-			}else{
+			} else {
 				this.userCmdProcHandles["directCmd"](in, userName, userInput)
 			}
 		}
