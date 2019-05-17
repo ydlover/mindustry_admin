@@ -110,6 +110,7 @@ type Mindustry struct {
 	users              map[string]User
 	serverOutR         *regexp.Regexp
 	cfgAdminCmds       string
+	cfgSuperAdminCmds  string
 	cfgNormCmds        string
 	cmds               map[string]Cmd
 	cmdHelps           map[string]string
@@ -137,7 +138,7 @@ func (this *Mindustry) loadConfig() {
 			if err == nil {
 				optionValue := strings.TrimSpace(optionValue)
 				admins := strings.Split(optionValue, ",")
-				this.cfgAdmin = admins
+				this.cfgAdmin = optionValue
 				log.Printf("[ini]found admins:%v\n", admins)
 				for _, admin := range admins {
 					this.addUser(admin)
@@ -148,7 +149,7 @@ func (this *Mindustry) loadConfig() {
 			if err == nil {
 				optionValue := strings.TrimSpace(optionValue)
 				supAdmins := strings.Split(optionValue, ",")
-				this.cfgSuperAdmin = supAdmins
+				this.cfgSuperAdmin = optionValue
 				log.Printf("[ini]found supAdmins:%v\n", supAdmins)
 				for _, supAdmin := range supAdmins {
 					this.addUser(supAdmin)
@@ -159,6 +160,7 @@ func (this *Mindustry) loadConfig() {
 			if err == nil {
 				optionValue := strings.TrimSpace(optionValue)
 				cmds := strings.Split(optionValue, ",")
+				this.cfgSuperAdminCmds = optionValue
 				log.Printf("[ini]found superAdminCmds:%v\n", cmds)
 				for _, cmd := range cmds {
 					this.cmds[cmd] = Cmd{cmd, 9}
@@ -458,13 +460,13 @@ func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput s
 	temps := strings.Split(userInput, " ")
 	if temps >= 2 {
 		cmd := strings.TrimSpace(temps[1])
-		if helpInfo, ok := this.cmds[cmdName]; ok {
+		if helpInfo, ok := this.cmdHelps[cmd]; ok {
 			say(in, cmd+" "+helpInfo)
 		} else {
 			say(in, "invalid cmd:"+cmd)
 		}
 	} else {
-		say(in, "super admin cmd:"+this.cfgSuperAdmin)
+		say(in, "super admin cmd:"+this.cfgSuperAdminCmds)
 		say(in, "admin       cmd:"+this.cfgAdminCmds)
 		say(in, "user        cmd:"+this.cfgNormCmds)
 	}
