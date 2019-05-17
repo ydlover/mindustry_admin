@@ -467,14 +467,14 @@ func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput s
 			say(in, "invalid cmd:"+cmd)
 		}
 	} else {
-		if this.users[userName].isSuperAdmin{
+		if this.users[userName].isSuperAdmin {
 			say(in, "super admin cmd:"+this.cfgSuperAdminCmds)
-		}else if this.users[userName].isAdmin{
+		} else if this.users[userName].isAdmin {
 			say(in, "admin cmd:"+this.cfgAdminCmds)
-		}else
+		} else {
 			say(in, "user cmd:"+this.cfgNormCmds)
 		}
-		
+
 	}
 }
 func (this *Mindustry) proc_showAdmin(in io.WriteCloser, userName string, userInput string) {
