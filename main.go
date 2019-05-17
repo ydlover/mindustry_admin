@@ -91,10 +91,10 @@ func execCommand(commandName string, params []string, handle CallBack) error {
 }
 
 type User struct {
-	name          string
-	isAdmin       bool
-	isSupperAdmin bool
-	level         int
+	name         string
+	isAdmin      bool
+	isSuperAdmin bool
+	level        int
 }
 type Cmd struct {
 	name  string
@@ -104,11 +104,15 @@ type Cmd struct {
 type Mindustry struct {
 	name               string
 	admins             []string
+	cfgAdmin           string
+	cfgSuperAdmin      string
 	jarPath            string
 	users              map[string]User
 	serverOutR         *regexp.Regexp
 	cfgAdminCmds       string
+	cfgNormCmds        string
 	cmds               map[string]Cmd
+	cmdHelps           map[string]string
 	port               int
 	mode               string
 	cmdFailReason      string
@@ -133,6 +137,7 @@ func (this *Mindustry) loadConfig() {
 			if err == nil {
 				optionValue := strings.TrimSpace(optionValue)
 				admins := strings.Split(optionValue, ",")
+				this.cfgAdmin = admins
 				log.Printf("[ini]found admins:%v\n", admins)
 				for _, admin := range admins {
 					this.addUser(admin)
@@ -143,6 +148,7 @@ func (this *Mindustry) loadConfig() {
 			if err == nil {
 				optionValue := strings.TrimSpace(optionValue)
 				supAdmins := strings.Split(optionValue, ",")
+				this.cfgSuperAdmin = supAdmins
 				log.Printf("[ini]found supAdmins:%v\n", supAdmins)
 				for _, supAdmin := range supAdmins {
 					this.addUser(supAdmin)
@@ -169,6 +175,16 @@ func (this *Mindustry) loadConfig() {
 					this.cmds[cmd] = Cmd{cmd, 1}
 				}
 			}
+			optionValue, err = cfg.String("server", "normCmds")
+			if err == nil {
+				optionValue := strings.TrimSpace(optionValue)
+				cmds := strings.Split(optionValue, ",")
+				log.Printf("[ini]found normCmds:%v\n", cmds)
+				this.cfgNormCmds = optionValue
+				for _, cmd := range cmds {
+					this.cmds[cmd] = Cmd{cmd, 0}
+				}
+			}
 
 			optionValue, err = cfg.String("server", "name")
 			if err == nil {
@@ -182,11 +198,24 @@ func (this *Mindustry) loadConfig() {
 			}
 		}
 	}
+
+	if cfg.HasSection("cmdHelp") {
+		section, err := cfg.SectionOptions("cmdHelp")
+		if err == nil {
+			for _, v := range section {
+				options, err := cfg.String("cmdHelp", v)
+				if err == nil {
+					this.cmdHelps[v] = options
+				}
+			}
+		}
+	}
 }
 func (this *Mindustry) init() {
 	this.serverOutR, _ = regexp.Compile(".*(\\[INFO\\]|\\[ERR\\])(.*)")
 	this.users = make(map[string]User)
 	this.cmds = make(map[string]Cmd)
+	this.cmdHelps = make(map[string]string)
 	this.userCmdProcHandles = make(map[string]UserCmdProcHandle)
 	rand.Seed(time.Now().UnixNano())
 	this.name = fmt.Sprintf("mindustry-%d", rand.Int())
@@ -205,6 +234,7 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["maps"] = this.proc_mapsOrStatus
 	this.userCmdProcHandles["status"] = this.proc_mapsOrStatus
 	this.userCmdProcHandles["slots"] = this.proc_slots
+	this.userCmdProcHandles["showAdmin"] = this.proc_showAdmin
 
 }
 func (this *Mindustry) addUser(name string) {
@@ -233,7 +263,7 @@ func (this *Mindustry) addSuperAdmin(name string) {
 	}
 	tempUser := this.users[name]
 	tempUser.isAdmin = true
-	tempUser.isSupperAdmin = true
+	tempUser.isSuperAdmin = true
 	tempUser.level = 9
 	this.users[name] = tempUser
 	log.Printf("add superAdmin :%s\n", name)
@@ -250,7 +280,7 @@ func (this *Mindustry) offlineUser(name string) {
 		return
 	}
 
-	if !(this.users[name].isAdmin || this.users[name].isSupperAdmin) {
+	if !(this.users[name].isAdmin || this.users[name].isSuperAdmin) {
 		this.delUser(name)
 		return
 	}
@@ -425,8 +455,26 @@ func (this *Mindustry) proc_gameover(in io.WriteCloser, userName string, userInp
 	execCmd(in, userInput)
 }
 func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput string) {
-	say(in, "support cmds:"+this.cfgAdminCmds)
+	temps := strings.Split(userInput, " ")
+	if temps >= 2 {
+		cmd := strings.TrimSpace(temps[1])
+		if helpInfo, ok := this.cmds[cmdName]; ok {
+			say(in, cmd+" "+helpInfo)
+		} else {
+			say(in, "invalid cmd:"+cmd)
+		}
+	} else {
+		say(in, "super admin cmd:"+this.cfgSuperAdmin)
+		say(in, "admin       cmd:"+this.cfgAdminCmds)
+		say(in, "user        cmd:"+this.cfgNormCmds)
+	}
 }
+func (this *Mindustry) proc_showAdmin(in io.WriteCloser, userName string, userInput string) {
+	say(in, "super admin:"+this.cfgSuperAdmin)
+	say(in, "admin:"+this.cfgAdmin)
+
+}
+
 func (this *Mindustry) proc_slots(in io.WriteCloser, userName string, userInput string) {
 	say(in, "slots:"+getSlotList())
 }
@@ -545,7 +593,7 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 
 		if this.users[userName].isAdmin {
 			time.Sleep(1 * time.Second)
-			if this.users[userName].isSupperAdmin {
+			if this.users[userName].isSuperAdmin {
 				say(in, "Welcome Super admin:::::::::::::::: "+userName)
 			} else {
 				say(in, "Welcome admin:"+userName)
