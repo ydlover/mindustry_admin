@@ -458,7 +458,7 @@ func (this *Mindustry) proc_gameover(in io.WriteCloser, userName string, userInp
 }
 func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput string) {
 	temps := strings.Split(userInput, " ")
-	if temps >= 2 {
+	if len(temps) >= 2 {
 		cmd := strings.TrimSpace(temps[1])
 		if helpInfo, ok := this.cmdHelps[cmd]; ok {
 			say(in, cmd+" "+helpInfo)
