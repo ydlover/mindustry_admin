@@ -501,8 +501,8 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 				return
 			}
 
-			info := fmt.Sprintf("proc user[%s] cmd :%s", userName, userInput)
-			say(in, info)
+			//info := fmt.Sprintf("proc user[%s] cmd :%s", userName, userInput)
+			//say(in, info)
 			if handleFunc, ok := this.userCmdProcHandles[cmdName]; ok {
 				handleFunc(in, userName, userInput)
 			} else {
