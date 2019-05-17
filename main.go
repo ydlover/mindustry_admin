@@ -204,10 +204,10 @@ func (this *Mindustry) loadConfig() {
 	if cfg.HasSection("cmdHelp") {
 		section, err := cfg.SectionOptions("cmdHelp")
 		if err == nil {
-			for _, v := range section {
-				options, err := cfg.String("cmdHelp", v)
+			for k, v := range section {
+				options, err := cfg.String("cmdHelp", k)
 				if err == nil {
-					this.cmdHelps[v] = options
+					this.cmdHelps[k] = options
 				}
 			}
 		}
@@ -467,8 +467,8 @@ func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput s
 		}
 	} else {
 		say(in, "super admin cmd:"+this.cfgSuperAdminCmds)
-		say(in, "admin       cmd:"+this.cfgAdminCmds)
-		say(in, "user        cmd:"+this.cfgNormCmds)
+		say(in, "admin cmd:"+this.cfgAdminCmds)
+		say(in, "user cmd:"+this.cfgNormCmds)
 	}
 }
 func (this *Mindustry) proc_showAdmin(in io.WriteCloser, userName string, userInput string) {
