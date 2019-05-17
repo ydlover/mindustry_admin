@@ -34,6 +34,8 @@ type CallBack interface {
 	output(line string, in io.WriteCloser)
 }
 
+var UserCmdProcHandle func(in io.WriteCloser, userName string, userInput string)
+
 func execCommand(commandName string, params []string, handle CallBack) error {
 	cmd := exec.Command(commandName, params...)
 	fmt.Println(cmd.Args)
@@ -114,6 +116,8 @@ type Mindustry struct {
 	currProcCmd   string
 	playCnt       int
 	maps          []string
+	userCmdProcHandles  map[string]UserCmdProcHandle
+	
 }
 
 func (this *Mindustry) loadConfig() {
@@ -185,12 +189,23 @@ func (this *Mindustry) init() {
 	this.serverOutR, _ = regexp.Compile(".*(\\[INFO\\]|\\[ERR\\])(.*)")
 	this.users = make(map[string]User)
 	this.cmds = make(map[string]Cmd)
+	this.userCmdProcHandles = make(map[string]UserCmdProcHandle)
 	rand.Seed(time.Now().UnixNano())
 	this.name = fmt.Sprintf("mindustry-%d", rand.Int())
 	this.jarPath = "server-release.jar"
 	this.loadConfig()
 	this.addUser("Server")
 	this.addSuperAdmin("Server")
+	this.userCmdProcHandles["admin"] = this.proc_admin
+	this.userCmdProcHandles["directCmd"] = this.proc_directCmd
+	this.userCmdProcHandles["gameover"] = this.proc_gameover
+	this.userCmdProcHandles["help"] = this.proc_help
+	this.userCmdProcHandles["host"] = this.proc_host
+	this.userCmdProcHandles["hostx"] = this.proc_host
+	this.userCmdProcHandles["save"] = this.proc_save
+	this.userCmdProcHandles["load"] = this.proc_load
+	this.userCmdProcHandles["maps"] = this.proc_mapsOrStatus
+	this.userCmdProcHandles["status"] = this.proc_mapsOrStatus
 
 }
 func (this *Mindustry) addUser(name string) {
@@ -282,6 +297,136 @@ func getSlotList() string {
 	}
 	return strings.Join(slotList, ",")
 }
+
+func (this *Mindustry) proc_mapsOrStatus(in io.WriteCloser, userName string, userInput string) {
+	if cmdName == "maps" || cmdName == "status" {
+		go func() {
+			timer := time.NewTimer(time.Duration(5) * time.Second)
+			<-timer.C
+			if this.currProcCmd != "" {
+				say(in, "Command "+this.currProcCmd+" timeout!")
+				this.currProcCmd = ""
+			}
+		}()
+		this.currProcCmd = cmdName
+	}
+	if cmdName == "maps" {
+		execCmd(in, "reloadmaps")
+		this.maps = this.maps[0:0]
+	}
+}
+func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput string) {
+	mapName := ""
+	temps := strings.Split(userInput, " ")
+	if len(temps) < 2 {
+		say(in, "Command ("+userInput+") length invalid!")
+		return
+	}
+	inputCmd := strings.TrimSpace(temps[0])
+	inputMap := strings.TrimSpace(temps[1])
+	inputMode := ""
+	if len(temps) > 2 {
+		inputMode = strings.TrimSpace(temps[2])
+	}
+	if inputCmd == "hostx" {
+		inputIndex := 0
+		var err error = nil
+		if inputIndex, err = strconv.Atoi(inputMap); err != nil {
+			say(in, "Command ("+userInput+") invalid,please input number!")
+			return
+		}
+		if inputIndex < 0 || inputIndex >= len(this.maps) {
+
+			say(in, "Command ("+userInput+") invalid,mapIndex err!")
+			return
+		}
+		mapName = this.maps[inputIndex]
+	} else if inputCmd == "host" {
+		isFind := false
+		for _, name := range this.maps {
+			if name == inputMap {
+				isFind = true
+				break
+			}
+		}
+		if !isFind {
+			say(in, "Command ("+userInput+") invalid,map not found!")
+			return
+		}
+	} else {
+		say(in, "Command ("+userInput+") invalid!")
+		return
+	}
+	if inputMode != "pvp" && inputMode != "attack" && inputMode != "" {
+		say(in, "Command ("+userInput+") invalid,mode  err!")
+		return
+	}
+	say(in, "The server needs to be restarted. Please wait 10 seconds to log in!")
+	execCmd(in, "reloadmaps")
+	time.Sleep(time.Duration(5) * time.Second)
+	execCmd(in, "stop")
+	time.Sleep(time.Duration(5) * time.Second)
+	if inputMode == "" {
+		execCmd(in, "host "+mapName)
+	} else {
+		execCmd(in, "host "+mapName+" "+inputMode)
+	}
+}
+
+func (this *Mindustry) proc_save(in io.WriteCloser, userName string, userInput string) {
+	targetSlot := ""
+	if userInput == "save" {
+		minute := time.Now().Minute()
+		targetSlot = fmt.Sprintf("%d%02d%02d", time.Now().Day(), time.Now().Hour(), minute/10*10)
+	} else {
+		targetSlot = userInput[len("save"):]
+		targetSlot = strings.TrimSpace(targetSlot)
+	}
+	if _, ok := strconv.Atoi(targetSlot); ok != nil {
+		say(in, "slot invalid:"+targetSlot+",please input number,ie:save 111")
+		return
+	}
+	execCmd(in, "save "+targetSlot)
+	say(in, "save slot("+targetSlot+") success!")
+}
+
+func (this *Mindustry) proc_load(in io.WriteCloser, userName string, userInput string) {
+	targetSlot := userInput[len("load"):]
+	targetSlot = strings.TrimSpace(targetSlot)
+	if !checkSlotValid(targetSlot) {
+		say(in, "load slot not exist,please check input:"+targetSlot)
+		return
+	}
+	say(in, "The server needs to be restarted. Please wait 10 seconds to log in.!")
+	time.Sleep(time.Duration(5) * time.Second)
+	execCmd(in, "stop")
+	time.Sleep(time.Duration(5) * time.Second)
+	execCmd(in, userInput)
+}
+func (this *Mindustry) proc_admin(in io.WriteCloser, userName string, userInput string) {
+	targetName := userInput[len("admin"):]
+	targetName = strings.TrimSpace(targetName)
+	if targetName == "" {
+		say(in, "Please input admin name")
+	} else {
+		this.addAdmin(targetName)
+		execCmd(in, userInput)
+		say(in, "admin ["+targetName+"] is add!")
+	}
+}
+func (this *Mindustry) proc_directCmd(in io.WriteCloser, userName string, userInput string) {
+	execCmd(in, userInput)
+}
+func (this *Mindustry) proc_gameover(in io.WriteCloser, userName string, userInput string) {
+	execCmd(in, "reloadmaps")
+	execCmd(in, userInput)
+}
+func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput string) {
+	say(in, "support cmds:"+this.cfgAdminCmds)
+}
+func (this *Mindustry) proc_slots(in io.WriteCloser, userName string, userInput string) {
+	say(in, "slots:"+getSlotList())
+}
 func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput string) {
 	temps := strings.Split(userInput, " ")
 	cmdName := temps[0]
@@ -298,124 +443,12 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 			}
 
 			info := fmt.Sprintf("proc user[%s] cmd :%s", userName, userInput)
-			if cmdName == "maps" || cmdName == "status" {
-				go func() {
-					timer := time.NewTimer(time.Duration(5) * time.Second)
-					<-timer.C
-					if this.currProcCmd != "" {
-						say(in, "Command "+this.currProcCmd+" timeout!")
-						this.currProcCmd = ""
-					}
-				}()
-				this.currProcCmd = cmdName
-			}
-			if cmdName == "maps" {
-				execCmd(in, "reloadmaps")
-				this.maps = this.maps[0:0]
-			}
 			say(in, info)
-			if strings.EqualFold(userInput, "help") {
-				say(in, "support cmds:"+this.cfgAdminCmds)
-			} else if strings.EqualFold(userInput, "gameover") {
-				execCmd(in, "reloadmaps")
-				execCmd(in, userInput)
-			} else if strings.HasPrefix(userInput, "host") {
-				mapName := ""
-				temps := strings.Split(userInput, " ")
-				if len(temps) < 2 {
-					say(in, "Command ("+userInput+") length invalid!")
-					return
-				}
-				inputCmd := strings.TrimSpace(temps[0])
-				inputMap := strings.TrimSpace(temps[1])
-				inputMode := ""
-				if len(temps) > 2 {
-					inputMode = strings.TrimSpace(temps[2])
-				}
-				if inputCmd == "hostx" {
-					inputIndex := 0
-					var err error = nil
-					if inputIndex, err = strconv.Atoi(inputMap); err != nil {
-						say(in, "Command ("+userInput+") invalid,please input number!")
-						return
-					}
-					if inputIndex < 0 || inputIndex >= len(this.maps) {
-
-						say(in, "Command ("+userInput+") invalid,mapIndex err!")
-						return
-					}
-					mapName = this.maps[inputIndex]
-				} else if inputCmd == "host" {
-					isFind := false
-					for _, name := range this.maps {
-						if name == inputMap {
-							isFind = true
-							break
-						}
-					}
-					if !isFind {
-						say(in, "Command ("+userInput+") invalid,map not found!")
-						return
-					}
-				} else {
-					say(in, "Command ("+userInput+") invalid!")
-					return
-				}
-				if inputMode != "pvp" && inputMode != "attack" && inputMode != "" {
-					say(in, "Command ("+userInput+") invalid,mode  err!")
-					return
-				}
-				say(in, "The server needs to be restarted. Please wait 10 seconds to log in!")
-				execCmd(in, "reloadmaps")
-				time.Sleep(time.Duration(5) * time.Second)
-				execCmd(in, "stop")
-				time.Sleep(time.Duration(5) * time.Second)
-				if inputMode == "" {
-					execCmd(in, "host "+mapName)
-				} else {
-					execCmd(in, "host "+mapName+" "+inputMode)
-				}
-			} else if strings.HasPrefix(userInput, "slots") {
-				say(in, "slots:"+getSlotList())
-			} else if strings.HasPrefix(userInput, "save") {
-				targetSlot := ""
-				if userInput == "save" {
-					minute := time.Now().Minute()
-					targetSlot = fmt.Sprintf("%d%02d%02d", time.Now().Day(), time.Now().Hour(), minute/10*10)
-				} else {
-					targetSlot = userInput[len("save"):]
-					targetSlot = strings.TrimSpace(targetSlot)
-				}
-				if _, ok := strconv.Atoi(targetSlot); ok != nil {
-					say(in, "slot invalid:"+targetSlot+",please input number,ie:save 111")
-					return
-				}
-				execCmd(in, "save "+targetSlot)
-				say(in, "save slot("+targetSlot+") success!")
-			} else if strings.HasPrefix(userInput, "load ") {
-				targetSlot := userInput[len("load"):]
-				targetSlot = strings.TrimSpace(targetSlot)
-				if !checkSlotValid(targetSlot) {
-					say(in, "load slot not exist,please check input:"+targetSlot)
-					return
-				}
-				say(in, "The server needs to be restarted. Please wait 10 seconds to log in.!")
-				time.Sleep(time.Duration(5) * time.Second)
-				execCmd(in, "stop")
-				time.Sleep(time.Duration(5) * time.Second)
-				execCmd(in, userInput)
-			} else if strings.HasPrefix(userInput, "admin ") {
-				targetName := userInput[len("admin"):]
-				targetName = strings.TrimSpace(targetName)
-				if targetName == "" {
-					say(in, "Please input admin name")
-				} else {
-					this.addAdmin(targetName)
-					execCmd(in, userInput)
-					say(in, "admin ["+targetName+"] is add!")
-				}
-			} else {
-				execCmd(in, userInput)
+			if this.userCmdProcHandles[cmdName]
+			if handleFunc, ok := this.userCmdProcHandles[cmdName]; ok {
+				handleFunc(in, userName, userInput)
+			}else{
+				this.userCmdProcHandles["directCmd"](in, userName, userInput)
 			}
 		}
 
