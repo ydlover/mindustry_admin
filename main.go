@@ -201,13 +201,13 @@ func (this *Mindustry) loadConfig() {
 		}
 	}
 
-	if cfg.HasSection("cmdHelp") {
-		section, err := cfg.SectionOptions("cmdHelp")
+	if cfg.HasSection("cmdHelps") {
+		section, err := cfg.SectionOptions("cmdHelps")
 		if err == nil {
 			for _, v := range section {
-				options, err := cfg.String("cmdHelp", v)
+				options, err := cfg.String("cmdHelps", v)
 				if err == nil {
-					log.Printf("[ini]found help:%s %s\n", v, options)
+					//log.Printf("[ini]found help:%s %s\n", v, options)
 					this.cmdHelps[v] = options
 				}
 			}
