@@ -563,7 +563,12 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 
 	index := strings.Index(line, SERVER_ERR_LOG)
 	if index >= 0 {
-		this.cmdFailReason = line
+		errInfo := strings.TrimSpace(line[index+len(SERVER_ERR_LOG):])
+		if strings.Contains(errInfo, "io.anuke.arc.util.ArcRuntimeException: File not found") {
+			log.Printf("map not found , force exit!\n")
+			execCmd(in, "exit")
+		}
+		this.cmdFailReason = errInfo
 		return
 	}
 

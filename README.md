@@ -23,4 +23,34 @@
 * 4)\load slot 命令执行前检查slot是否非法，load时会自动重启服务端
 * 5)\slots 查看当前服务器上可用存档，注意如果存档版本不匹配、地图不存在等原因可能加载失败，加载失败需要人工处理
 * 6)\showAdmin 查看服务器的管理员名单，默认普通用户可执行
-  
+ 
+Feture lists
+============
+* 1) In the game, commands are sent through chat windows, such as gameover [already supported]
+* 2) Basic privilege control, only admin or superAdmin has command execution privilege [already supported]
+* 3) Map Manager, which allows administrators to change maps through web pages [already supported]
+* 4) Integer point (hourly) automatic backup function [already supported]
+ 
+Installation
+============
+* 1) Unzip the published zip anywhere on the hard disk
+* 2) Move the officially published server-release.jar to the directory
+* 3) Modify the list of server administrators and super administrators in config.ini file, and load these users into the system when the server starts.
+* 4) Start the execution program of the corresponding operating system, such as mindustry_admin_linux_386-port 6567-up 6569
+* 5) Startup parameter description: - Port server port, default 6567, if you do not need to modify you can not enter
+* 6) Startup parameter description: - up map management port, default 6569, if you do not need to modify you can not enter
+ 
+Chat room command help
+===================================
+ * 1)\maps 
+ to view the currently available map, the number in front of the map is ID
+* 2)\hostx[mode] 
+ Uses ID to change maps. When changing maps, the server will automatically restart.
+* 3) \save [slot] 
+ When slot is not input, it is automatically saved as the corresponding number of the current day time/10. Note that it is better not to have any enemy that have not been eradicated when saving, otherwise these monsters may be refreshed to any place on the map when loading archives.
+* 4)\Load slot 
+ Command checks whether the slot is illegal before execution, and automatically restarts the server when loading
+ 5)\slots 
+ View the available archives on the current server. Note that if the archive version does not match, the map does not exist and other reasons may fail to load, the failure of loading needs to be handled manually.
+* 6)/ShowAdmin
+  View the server administrator list, default ordinary user execute
