@@ -382,6 +382,7 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 		for _, name := range this.maps {
 			if name == inputMap {
 				isFind = true
+				mapName = name
 				break
 			}
 		}
@@ -393,7 +394,7 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 		say(in, "Command ("+userInput+") invalid!")
 		return
 	}
-	if inputMode != "pvp" && inputMode != "attack" && inputMode != "" {
+	if inputMode != "pvp" && inputMode != "attack" && inputMode != "" && inputMode != "sandbox" {
 		say(in, "Command ("+userInput+") invalid,mode  err!")
 		return
 	}
