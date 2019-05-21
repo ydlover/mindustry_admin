@@ -238,6 +238,7 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["status"] = this.proc_mapsOrStatus
 	this.userCmdProcHandles["slots"] = this.proc_slots
 	this.userCmdProcHandles["showAdmin"] = this.proc_showAdmin
+	this.userCmdProcHandles["show"] = this.proc_show
 
 }
 func (this *Mindustry) addUser(name string) {
@@ -477,6 +478,31 @@ func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput s
 		}
 
 	}
+}
+
+var tempOsPath = "/sys/class/thermal/thermal_zone0/temp"
+
+func getCpuTemp() float64 {
+	raw, err := ioutil.ReadFile(tempOsPath)
+	if err != nil {
+		log.Printf("Failed to read temperature from %q: %v", tempOsPath, err)
+		return 0.0
+	}
+
+	cpuTempStr := strings.TrimSpace(string(raw))
+	cpuTempInt, err := strconv.Atoi(cpuTempStr) // e.g. 55306
+	if err != nil {
+		log.Printf("%q does not contain an integer: %v", tempOsPath, err)
+		return 0.0
+	}
+	cpuTemp := float64(cpuTempInt) / 1000.0
+	//debug.Printf("CPU temperature: %.3f°C", cpuTemp)
+	return cpuTemp
+}
+func (this *Mindustry) proc_show(in io.WriteCloser, userName string, userInput string) {
+	tempStr := fmt.Sprintf("CPU temperature: %.3f°C", getCpuTemp())
+	say(in, tempStr)
+
 }
 func (this *Mindustry) proc_showAdmin(in io.WriteCloser, userName string, userInput string) {
 	say(in, "super admin:"+this.cfgSuperAdmin)
