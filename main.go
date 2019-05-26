@@ -30,65 +30,7 @@ func StripColor(str string) string {
 	return re.ReplaceAllString(str, "")
 }
 
-type CallBack interface {
-	output(line string, in io.WriteCloser)
-}
 type UserCmdProcHandle func(in io.WriteCloser, userName string, userInput string)
-
-func execCommand(commandName string, params []string, handle CallBack) error {
-	cmd := exec.Command(commandName, params...)
-	fmt.Println(cmd.Args)
-	stdout, outErr := cmd.StdoutPipe()
-	stdin, inErr := cmd.StdinPipe()
-	if outErr != nil {
-		return outErr
-	}
-
-	if inErr != nil {
-		return inErr
-	}
-	cmd.Start()
-	go func(cmd *exec.Cmd) {
-		c := make(chan os.Signal)
-		signal.Notify(c, os.Interrupt, os.Kill)
-		s := <-c
-		if cmd.Process != nil {
-			log.Printf("sub process exit:%s", s)
-			cmd.Process.Kill()
-		}
-	}(cmd)
-	c := cron.New()
-	spec := "0 0 * * * ?"
-	c.AddFunc(spec, func() {
-		hour := time.Now().Hour()
-		execCmd(stdin, "save "+strconv.Itoa(hour))
-		say(stdin, "auto save "+strconv.Itoa(hour))
-	})
-	c.Start()
-	go func(cmd *exec.Cmd) {
-		reader := bufio.NewReader(os.Stdin)
-		for {
-			line, err2 := reader.ReadString('\n')
-			if err2 != nil || io.EOF == err2 {
-				break
-			}
-			execCmd(stdin, strings.TrimRight(line, "\n"))
-		}
-	}(cmd)
-
-	reader := bufio.NewReader(stdout)
-
-	for {
-		line, err2 := reader.ReadString('\n')
-		if err2 != nil || io.EOF == err2 {
-			break
-		}
-		fmt.Printf(line)
-		handle.output(StripColor(line), stdin)
-	}
-	cmd.Wait()
-	return nil
-}
 
 type User struct {
 	name         string
@@ -118,6 +60,7 @@ type Mindustry struct {
 	mode               string
 	cmdFailReason      string
 	currProcCmd        string
+	notice             string //cron task auto notice msg
 	playCnt            int
 	serverIsRun        bool
 	maps               []string
@@ -199,6 +142,12 @@ func (this *Mindustry) loadConfig() {
 				jarPath := strings.TrimSpace(optionValue)
 				this.jarPath = jarPath
 			}
+			optionValue, err = cfg.String("server", "notice")
+			if err == nil {
+				notice := strings.TrimSpace(optionValue)
+				this.notice = notice
+			}
+
 		}
 	}
 
@@ -241,6 +190,86 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["showAdmin"] = this.proc_showAdmin
 	this.userCmdProcHandles["show"] = this.proc_show
 
+}
+
+func (this *Mindustry) execCommand(commandName string, params []string) error {
+	cmd := exec.Command(commandName, params...)
+	fmt.Println(cmd.Args)
+	stdout, outErr := cmd.StdoutPipe()
+	stdin, inErr := cmd.StdinPipe()
+	if outErr != nil {
+		return outErr
+	}
+
+	if inErr != nil {
+		return inErr
+	}
+	cmd.Start()
+	go func(cmd *exec.Cmd) {
+		c := make(chan os.Signal)
+		signal.Notify(c, os.Interrupt, os.Kill)
+		s := <-c
+		if cmd.Process != nil {
+			log.Printf("sub process exit:%s", s)
+			cmd.Process.Kill()
+		}
+	}(cmd)
+	c := cron.New()
+	spec := "0 0 * * * ?"
+	c.AddFunc(spec, func() {
+		this.hourTask(stdin)
+	})
+	spec = "0 5/10 * * * ?"
+	c.AddFunc(spec, func() {
+		this.tenMinTask(stdin)
+	})
+	c.Start()
+	go func(cmd *exec.Cmd) {
+		reader := bufio.NewReader(os.Stdin)
+		for {
+			line, err2 := reader.ReadString('\n')
+			if err2 != nil || io.EOF == err2 {
+				break
+			}
+			execCmd(stdin, strings.TrimRight(line, "\n"))
+		}
+	}(cmd)
+
+	reader := bufio.NewReader(stdout)
+
+	for {
+		line, err2 := reader.ReadString('\n')
+		if err2 != nil || io.EOF == err2 {
+			break
+		}
+		fmt.Printf(line)
+		this.output(StripColor(line), stdin)
+	}
+	cmd.Wait()
+	return nil
+}
+func (this *Mindustry) hourTask(in io.WriteCloser) {
+	hour := time.Now().Hour()
+	log.Printf("hourTask trig:%d\n", hour)
+	if this.serverIsRun {
+		execCmd(in, "save "+strconv.Itoa(hour))
+		say(in, "auto save "+strconv.Itoa(hour))
+	} else {
+		log.Printf("game is not running.\n")
+	}
+}
+
+func (this *Mindustry) tenMinTask(in io.WriteCloser) {
+	log.Printf("tenMinTask trig.\n")
+	if !this.serverIsRun {
+		log.Printf("game is not running,exit.\n")
+		execCmd(in, "exit")
+	} else {
+		say(in, this.notice)
+		log.Printf("update game status.\n")
+		this.currProcCmd = "status"
+		execCmd(in, "status ")
+	}
 }
 func (this *Mindustry) addUser(name string) {
 	if _, ok := this.users[name]; ok {
@@ -670,7 +699,7 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 func (this *Mindustry) run() {
 	var para = []string{"-jar", this.jarPath}
 	for {
-		execCommand("java", para, this)
+		this.execCommand("java", para)
 		log.Printf("server crash,wait(10s) reboot!\n")
 		time.Sleep(time.Duration(10) * time.Second)
 	}
