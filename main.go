@@ -119,6 +119,7 @@ type Mindustry struct {
 	cmdFailReason      string
 	currProcCmd        string
 	playCnt            int
+	serverIsRun        bool
 	maps               []string
 	userCmdProcHandles map[string]UserCmdProcHandle
 }
@@ -350,6 +351,8 @@ func (this *Mindustry) proc_mapsOrStatus(in io.WriteCloser, userName string, use
 		execCmd(in, "reloadmaps")
 		this.maps = this.maps[0:0]
 		execCmd(in, "maps")
+	} else if cmdName == "status" {
+		execCmd(in, "status")
 	}
 }
 func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput string) {
@@ -545,6 +548,17 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 func (this *Mindustry) multiLineRsltCmdComplete(in io.WriteCloser, line string) bool {
 	index := -1
 	if this.currProcCmd == "maps" {
+		if strings.Index(line, "Map directory:") >= 0 {
+			mapsInfo := "maps:"
+			for index, name := range this.maps {
+				if mapsInfo != "maps:" {
+					mapsInfo += ","
+				}
+				mapsInfo += ("[" + strconv.Itoa(index) + "]" + name)
+			}
+			say(in, mapsInfo)
+			return true
+		}
 		mapNameEndIndex := -1
 		index = strings.Index(line, ": Custom /")
 		if index >= 0 {
@@ -557,25 +571,22 @@ func (this *Mindustry) multiLineRsltCmdComplete(in io.WriteCloser, line string) 
 		if mapNameEndIndex >= 0 {
 			this.maps = append(this.maps, strings.TrimSpace(line[:mapNameEndIndex]))
 		}
-	}
-	if strings.Index(line, "Map directory:") >= 0 {
-		mapsInfo := "maps:"
-		for index, name := range this.maps {
-			if mapsInfo != "maps:" {
-				mapsInfo += ","
+	} else if this.currProcCmd == "status" {
+
+		index = strings.Index(line, "Players:")
+		if index >= 0 {
+			countStr := strings.TrimSpace(line[index+len("Players:")+1:])
+			if count, ok := strconv.Atoi(countStr); ok == nil {
+				this.playCnt = count
 			}
-			mapsInfo += ("[" + strconv.Itoa(index) + "]" + name)
+			return true
+		} else if strings.Index(line, "No players connected.") >= 0 {
+			this.playCnt = 0
+			return true
+		} else if strings.Index(line, "Status: server closed") >= 0 {
+			this.serverIsRun = false
+			return true
 		}
-		say(in, mapsInfo)
-		return true
-	}
-	index = strings.Index(line, "Players:")
-	if index >= 0 {
-		countStr := strings.TrimSpace(line[index+len("Players:")+1:])
-		if count, ok := strconv.Atoi(countStr); ok == nil {
-			this.playCnt = count
-		}
-		return true
 	}
 	return false
 }
@@ -649,6 +660,7 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 		if this.mode == "mission" {
 			execCmd(in, "host 8 "+this.mode)
 		} else {
+			this.serverIsRun = true
 			execCmd(in, "host Fortress "+this.mode)
 		}
 	} else {
