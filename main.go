@@ -30,7 +30,7 @@ func StripColor(str string) string {
 	return re.ReplaceAllString(str, "")
 }
 
-type UserCmdProcHandle func(in io.WriteCloser, userName string, userInput string)
+type UserCmdProcHandle func(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool
 
 type User struct {
 	name         string
@@ -189,6 +189,7 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["slots"] = this.proc_slots
 	this.userCmdProcHandles["showAdmin"] = this.proc_showAdmin
 	this.userCmdProcHandles["show"] = this.proc_show
+	this.userCmdProcHandles["vote"] = this.proc_vote
 
 }
 
@@ -361,7 +362,10 @@ func getSlotList() string {
 	return strings.Join(slotList, ",")
 }
 
-func (this *Mindustry) proc_mapsOrStatus(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) proc_mapsOrStatus(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	if isOnlyCheck {
+		return true
+	}
 	temps := strings.Split(userInput, " ")
 	cmdName := temps[0]
 
@@ -383,13 +387,14 @@ func (this *Mindustry) proc_mapsOrStatus(in io.WriteCloser, userName string, use
 	} else if cmdName == "status" {
 		execCmd(in, "status")
 	}
+	return true
 }
-func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
 	mapName := ""
 	temps := strings.Split(userInput, " ")
 	if len(temps) < 2 {
 		say(in, "Command ("+userInput+") length invalid!")
-		return
+		return false
 	}
 	inputCmd := strings.TrimSpace(temps[0])
 	inputMap := strings.TrimSpace(temps[1])
@@ -402,12 +407,12 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 		var err error = nil
 		if inputIndex, err = strconv.Atoi(inputMap); err != nil {
 			say(in, "Command ("+userInput+") invalid,please input number!")
-			return
+			return false
 		}
 		if inputIndex < 0 || inputIndex >= len(this.maps) {
 
 			say(in, "Command ("+userInput+") invalid,mapIndex err!")
-			return
+			return false
 		}
 		mapName = this.maps[inputIndex]
 	} else if inputCmd == "host" {
@@ -421,15 +426,18 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 		}
 		if !isFind {
 			say(in, "Command ("+userInput+") invalid,map not found!")
-			return
+			return false
 		}
 	} else {
 		say(in, "Command ("+userInput+") invalid!")
-		return
+		return false
 	}
 	if inputMode != "pvp" && inputMode != "attack" && inputMode != "" && inputMode != "sandbox" {
 		say(in, "Command ("+userInput+") invalid,mode  err!")
-		return
+		return false
+	}
+	if isOnlyCheck {
+		return true
 	}
 	say(in, "The server needs to be restarted. Please wait 10 seconds to log in!")
 	execCmd(in, "reloadmaps")
@@ -441,9 +449,10 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 	} else {
 		execCmd(in, "host "+mapName+" "+inputMode)
 	}
+	return true
 }
 
-func (this *Mindustry) proc_save(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) proc_save(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
 	targetSlot := ""
 	if userInput == "save" {
 		minute := time.Now().Minute()
@@ -454,44 +463,68 @@ func (this *Mindustry) proc_save(in io.WriteCloser, userName string, userInput s
 	}
 	if _, ok := strconv.Atoi(targetSlot); ok != nil {
 		say(in, "slot invalid:"+targetSlot+",please input number,ie:save 111")
-		return
+		return false
+	}
+	if isOnlyCheck {
+		return true
 	}
 	execCmd(in, "save "+targetSlot)
 	say(in, "save slot("+targetSlot+") success!")
+	return true
 }
 
-func (this *Mindustry) proc_load(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) proc_load(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
 	targetSlot := userInput[len("load"):]
 	targetSlot = strings.TrimSpace(targetSlot)
 	if !checkSlotValid(targetSlot) {
 		say(in, "load slot not exist,please check input:"+targetSlot)
-		return
+		return false
+	}
+	if isOnlyCheck {
+		return true
 	}
 	say(in, "The server needs to be restarted. Please wait 10 seconds to log in.!")
 	time.Sleep(time.Duration(5) * time.Second)
 	execCmd(in, "stop")
 	time.Sleep(time.Duration(5) * time.Second)
 	execCmd(in, userInput)
+	return true
 }
-func (this *Mindustry) proc_admin(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) proc_admin(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
 	targetName := userInput[len("admin"):]
 	targetName = strings.TrimSpace(targetName)
 	if targetName == "" {
 		say(in, "Please input admin name")
+		return false
 	} else {
+		if isOnlyCheck {
+			return true
+		}
 		this.addAdmin(targetName)
 		execCmd(in, userInput)
 		say(in, "admin ["+targetName+"] is add!")
 	}
+	return true
 }
-func (this *Mindustry) proc_directCmd(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) proc_directCmd(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	if isOnlyCheck {
+		return true
+	}
 	execCmd(in, userInput)
+	return true
 }
-func (this *Mindustry) proc_gameover(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) proc_gameover(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	if isOnlyCheck {
+		return true
+	}
 	execCmd(in, "reloadmaps")
 	execCmd(in, userInput)
+	return true
 }
-func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	if isOnlyCheck {
+		return true
+	}
 	temps := strings.Split(userInput, " ")
 	if len(temps) >= 2 {
 		cmd := strings.TrimSpace(temps[1])
@@ -499,6 +532,7 @@ func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput s
 			say(in, cmd+" "+helpInfo)
 		} else {
 			say(in, "invalid cmd:"+cmd)
+			return false
 		}
 	} else {
 		if this.users[userName].isSuperAdmin {
@@ -510,6 +544,7 @@ func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput s
 		}
 
 	}
+	return true
 }
 
 var tempOsPath = "/sys/class/thermal/thermal_zone0/temp"
@@ -531,19 +566,58 @@ func getCpuTemp() float64 {
 	//debug.Printf("CPU temperature: %.3f°C", cpuTemp)
 	return cpuTemp
 }
-func (this *Mindustry) proc_show(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) proc_show(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	if isOnlyCheck {
+		return true
+	}
 	say(in, "Ver:"+_VERSION_)
 	tempStr := fmt.Sprintf("CPU temperature: %.3f°C", getCpuTemp())
 	say(in, tempStr)
+	return true
 }
-func (this *Mindustry) proc_showAdmin(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) proc_showAdmin(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	if isOnlyCheck {
+		return true
+	}
 	say(in, "super admin:"+this.cfgSuperAdmin)
 	say(in, "admin:"+this.cfgAdmin)
+	return true
 
 }
 
-func (this *Mindustry) proc_slots(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) proc_slots(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	if isOnlyCheck {
+		return true
+	}
 	say(in, "slots:"+getSlotList())
+	return true
+}
+func (this *Mindustry) proc_vote(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	index = strings.Index(userInput, " ")
+	if index < 0 {
+		say(in, "vote cmd invalid:"+userInput)
+		return false
+	}
+	voteCmd := userInput[index:]
+	if handleFunc, ok := this.userCmdProcHandles[voteCmd]; ok {
+		checkRslt := handleFunc(in, userName, userInput, true)
+		if !checkRslt {
+			return false
+		}
+		go func() {
+			timer := time.NewTimer(time.Duration(5) * time.Second)
+			<-timer.C
+			handleFunc(in, userName, userInput, false)
+		}()
+
+	} else {
+		say(in, "vote cmd not support:"+voteCmd)
+		return false
+	}
+	if isOnlyCheck {
+		return true
+	}
+	return true
 }
 func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput string) {
 	temps := strings.Split(userInput, " ")
@@ -563,9 +637,9 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 			//info := fmt.Sprintf("proc user[%s] cmd :%s", userName, userInput)
 			//say(in, info)
 			if handleFunc, ok := this.userCmdProcHandles[cmdName]; ok {
-				handleFunc(in, userName, userInput)
+				handleFunc(in, userName, userInput, false)
 			} else {
-				this.userCmdProcHandles["directCmd"](in, userName, userInput)
+				this.userCmdProcHandles["directCmd"](in, userName, userInput, false)
 			}
 		}
 
