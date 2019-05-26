@@ -1,9 +1,18 @@
-export TAG=1.4 
+#!/bin/bash
 
-gox -osarch="windows/amd64"
-gox -osarch="linux/386"
-gox -osarch="linux/amd64"
-gox -osarch="linux/arm"
-gox -osarch="linux/arm64"
-gox -osarch="windows/386"
+export TAG=1.4 
+if [ -n "$1" ]; then
+        TAG=$1
+        echo ver:${TAG}
+else
+        echo "Please input build version!"
+        echo "eg:build.sh 1.0"
+        exit
+fi
+gox -ldflags "-X main._VERSION_=${TAG}" -osarch="windows/amd64"
+gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/386"
+gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/amd64"
+gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/arm"
+gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/arm64"
+gox -ldflags "-X main._VERSION_=${TAG}" -osarch="windows/386"
 zip -r release_${TAG}.zip . -x "./config/*" -x "./server-release.jar" -x "*.go" -x "./logs/*" -x ".git/*" -x ".gitignore"

@@ -500,9 +500,9 @@ func getCpuTemp() float64 {
 	return cpuTemp
 }
 func (this *Mindustry) proc_show(in io.WriteCloser, userName string, userInput string) {
+	say(in, "Ver:"+_VERSION_)
 	tempStr := fmt.Sprintf("CPU temperature: %.3f°C", getCpuTemp())
 	say(in, tempStr)
-
 }
 func (this *Mindustry) proc_showAdmin(in io.WriteCloser, userName string, userInput string) {
 	say(in, "super admin:"+this.cfgSuperAdmin)
