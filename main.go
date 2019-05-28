@@ -471,6 +471,7 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 	time.Sleep(time.Duration(5) * time.Second)
 	this.execCmd(in, "stop")
 	time.Sleep(time.Duration(5) * time.Second)
+	mapName = strings.Replace(mapName, " ", "_", -1)
 	if inputMode == "" {
 		this.execCmd(in, "host "+mapName)
 	} else {
