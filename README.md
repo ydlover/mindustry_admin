@@ -36,7 +36,7 @@ Installation
 * 1) Unzip the published zip anywhere on the hard disk
 * 2) Move the officially published server-release.jar to the directory
 * 3) Modify the list of server administrators and super administrators in config.ini file, and load these users into the system when the server starts.
-* 4) Start the execution program of the corresponding operating system, such as mindustry_admin_linux_386-port 6567-up 6569
+* 4) Start the execution program of the corresponding operating system, such as mindustry_admin_linux_386 -port 6567 -up 6569
 * 5) Startup parameter description: - Port server port, default 6567, if you do not need to modify you can not enter
 * 6) Startup parameter description: - up map management port, default 6569, if you do not need to modify you can not enter
  
@@ -52,5 +52,6 @@ Chat room command help
  Command checks whether the slot is illegal before execution, and automatically restarts the server when loading
  5)\slots 
  View the available archives on the current server. Note that if the archive version does not match, the map does not exist and other reasons may fail to load, the failure of loading needs to be handled manually.
-* 6)/ShowAdmin
+* 6)\ShowAdmin
   View the server administrator list, default ordinary user execute
+* 7)\vote [cmd] norm user vote in 60s
