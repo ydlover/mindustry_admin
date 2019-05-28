@@ -787,6 +787,7 @@ const USER_DISCONNECTED_KEY string = " has disconnected."
 const SERVER_INFO_LOG string = "[INFO] "
 const SERVER_ERR_LOG string = "[ERR!] "
 const SERVER_READY_KEY string = "Server loaded. Type 'help' for help."
+const SERVER_STSRT_KEY string = "Opened a server on port"
 
 func (this *Mindustry) output(line string, in io.WriteCloser) {
 
@@ -863,8 +864,10 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 			this.serverIsRun = true
 			this.execCmd(in, "host Fortress "+this.mode)
 		}
-	} else {
-
+	} else if strings.HasPrefix(cmdBody, SERVER_STSRT_KEY) {
+		log.Printf("server starting!\n")
+		this.serverIsRun = true
+		this.playCnt = 0
 	}
 }
 func (this *Mindustry) run() {
