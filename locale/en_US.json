@@ -38,7 +38,7 @@
   "info" : {
 	"auto_save" : "auto save %d",
 	"server_restart" : "The server needs to be restarted. Please wait 10 seconds to log in!",
-	"save_slot_succ" : "save slot(%d) success!",
+	"save_slot_succ" : "save slot(%s) success!",
 	"admin_added" : "admin [%s] is add!",
 	"cmd" : " cmd %s",
 	"super_admin_cmd" : "super admin cmd:%s",
@@ -66,8 +66,8 @@
 	"cmd_host_map_not_found" : "Command (%s) invalid,map not found!",
 	"cmd_invalid" : "Command (%s) invalid!",
 	"cmd_host_mode_invalid" : "Command (%s) invalid,mode  err!",
-	"cmd_save_slot_invalid" : "slot invalid:%d,please input number,ie:save 111",
-	"cmd_load_slot_invalid" : "load slot not exist,please check input:%d",
+	"cmd_save_slot_invalid" : "slot invalid:%s,please input number,ie:save 111",
+	"cmd_load_slot_invalid" : "load slot not exist,please check input:%s",
 	"cmd_admin_name_invalid" : "Please input admin name",
 	"cmd_is_exceuting" : "Command %s is executing, please wait for execution to complete!",
 	"cmd_votetick_target_invalid" : "votetick cmd invalid:%s",
@@ -76,6 +76,7 @@
 	"cmd_votetick_cmd_error" : "votetick cmd error:%s",
 	"cmd_votetick_cmd_not_support" : "votetick cmd not support:%s",
 	"cmd_permission_denied" : "user[%s] cmd :%s ,Permission denied!",
-	"cmd_invalid_user" : "proc user[%s] cmd :%s invalid!"
+	"cmd_invalid_user" : "proc user[%s] cmd :%s invalid!",
+	"cmd_host_fix_mode" : "Server works in fixed mode[%s], forbid modifying mode. If you want to play in other modes, please contact Super Administrator for modification."
 }
 }

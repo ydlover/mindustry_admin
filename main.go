@@ -66,6 +66,7 @@ type Mindustry struct {
 	currProcCmd        string
 	notice             string //cron task auto notice msg
 	playCnt            int
+	serverIsStart      bool
 	serverIsRun        bool
 	maps               []string
 	userCmdProcHandles map[string]UserCmdProcHandle
@@ -197,6 +198,7 @@ func (this *Mindustry) init() {
 	rand.Seed(time.Now().UnixNano())
 	this.name = fmt.Sprintf("mindustry-%d", rand.Int())
 	this.jarPath = "server-release.jar"
+	this.serverIsStart = true
 	this.loadConfig()
 	this.addUser("Server")
 	this.addSuperAdmin("Server")
@@ -256,7 +258,15 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 			if err2 != nil || io.EOF == err2 {
 				break
 			}
-			this.execCmd(stdin, strings.TrimRight(line, "\n"))
+			inputCmd := strings.TrimRight(line, "\n")
+			if inputCmd == "stop" || inputCmd == "exit" {
+				this.serverIsStart = false
+				this.serverIsRun = false
+			}
+			if inputCmd == "host" || inputCmd == "load" {
+				this.serverIsStart = true
+			}
+			this.execCmd(stdin, inputCmd)
 		}
 	}(cmd)
 
@@ -285,7 +295,11 @@ func (this *Mindustry) hourTask(in io.WriteCloser) {
 }
 
 func (this *Mindustry) tenMinTask(in io.WriteCloser) {
-	log.Printf("tenMinTask trig.\n")
+	log.Printf("tenMinTask trig[%.3f°C].\n", getCpuTemp())
+
+	if !this.serverIsStart {
+		return
+	}
 	if !this.serverIsRun {
 		log.Printf("game is not running,exit.\n")
 		this.execCmd(in, "exit")
@@ -432,6 +446,13 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 	inputCmd := strings.TrimSpace(temps[0])
 	inputMap := strings.TrimSpace(temps[1])
 	inputMode := ""
+	if this.mode != "" {
+		if len(temps) > 2 {
+			this.say(in, "error.cmd_host_fix_mode", this.mode)
+			return false
+		}
+		inputMode = inputMode
+	}
 	if len(temps) > 2 {
 		inputMode = strings.TrimSpace(temps[2])
 	}
@@ -785,7 +806,6 @@ const SERVER_READY_KEY string = "Server loaded. Type 'help' for help."
 const SERVER_STSRT_KEY string = "Opened a server on port"
 
 func (this *Mindustry) output(line string, in io.WriteCloser) {
-
 	index := strings.Index(line, SERVER_ERR_LOG)
 	if index >= 0 {
 		errInfo := strings.TrimSpace(line[index+len(SERVER_ERR_LOG):])
@@ -852,13 +872,11 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 		this.offlineUser(userName)
 	} else if strings.HasPrefix(cmdBody, SERVER_READY_KEY) {
 		this.playCnt = 0
+		this.serverIsRun = true
+
+		this.execCmd(in, "name "+this.name)
 		this.execCmd(in, "port "+strconv.Itoa(this.port))
-		if this.mode == "mission" {
-			this.execCmd(in, "host 8 "+this.mode)
-		} else {
-			this.serverIsRun = true
-			this.execCmd(in, "host Fortress "+this.mode)
-		}
+		this.execCmd(in, "host Fortress")
 	} else if strings.HasPrefix(cmdBody, SERVER_STSRT_KEY) {
 		log.Printf("server starting!\n")
 		this.serverIsRun = true
@@ -869,8 +887,12 @@ func (this *Mindustry) run() {
 	var para = []string{"-jar", this.jarPath}
 	for {
 		this.execCommand("java", para)
-		log.Printf("server crash,wait(10s) reboot!\n")
-		time.Sleep(time.Duration(10) * time.Second)
+		if this.serverIsStart {
+			log.Printf("server crash,wait(10s) reboot!\n")
+			time.Sleep(time.Duration(10) * time.Second)
+		} else {
+			break
+		}
 	}
 }
 func startMapUpServer(port int) {
@@ -879,7 +901,7 @@ func startMapUpServer(port int) {
 	}(port)
 }
 func main() {
-	mode := flag.String("mode", "survival", "mode:survival,attack,sandbox,pvp,mission")
+	mode := flag.String("mode", "", "fix mode:survival,attack,sandbox,pvp")
 	port := flag.Int("port", 6567, "Input port")
 	map_port := flag.Int("up", 6569, "map up port")
 	flag.Parse()
