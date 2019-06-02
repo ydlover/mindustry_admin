@@ -77,6 +77,7 @@
 	"cmd_votetick_cmd_not_support" : "votetick cmd not support:%s",
 	"cmd_permission_denied" : "user[%s] cmd :%s ,Permission denied!",
 	"cmd_invalid_user" : "proc user[%s] cmd :%s invalid!",
-	"cmd_host_fix_mode" : "Server works in fixed mode[%s], forbid modifying mode. If you want to play in other modes, please contact Super Administrator for modification."
+	"cmd_host_fix_mode" : "Server works in fixed mode[%s], forbid modifying mode. If you want to play in other modes, please contact Super Administrator for modification.",
+	"login_forbbidden_username" : "'Server' forbidden use!"
 }
 }

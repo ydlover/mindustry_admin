@@ -855,6 +855,11 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 
 	if strings.HasSuffix(cmdBody, USER_CONNECTED_KEY) {
 		userName := strings.TrimSpace(cmdBody[:len(cmdBody)-len(USER_CONNECTED_KEY)])
+		if userName == "Server" {
+			this.say(in, "error.login_forbbidden_username")
+			this.execCmd(in, "kick "+userName)
+			return
+		}
 		this.onlineUser(userName)
 
 		if this.users[userName].isAdmin {
