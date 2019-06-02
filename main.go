@@ -837,7 +837,7 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 				return
 			}
 			sayBody := strings.TrimSpace(cmdBody[index+1:])
-			if strings.HasPrefix(sayBody, "\\") {
+			if strings.HasPrefix(sayBody, "\\") || strings.HasPrefix(sayBody, "/") || strings.HasPrefix(sayBody, "!") {
 				this.procUsrCmd(in, userName, sayBody[1:])
 			} else if len(this.votetickUsers) > 0 {
 				if sayBody == "1" {
