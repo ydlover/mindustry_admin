@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export TAG=1.4 
+export TAG=1.0 
 if [ -n "$1" ]; then
         TAG=$1
         echo ver:${TAG}
@@ -15,4 +15,4 @@ gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/amd64"
 gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/arm"
 gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/arm64"
 gox -ldflags "-X main._VERSION_=${TAG}" -osarch="windows/386"
-zip -r release_${TAG}.zip . -x "./config/*" -x "./server-release.jar" -x "*.go" -x "./logs/*" -x ".git/*" -x ".gitignore"
+zip -r release_${TAG}.zip . -x "mindustry_admin" -x "*.zip" -x "./config/*" -x "./server-release.jar" -x "*.go" -x "./logs/*" -x ".git/*" -x ".gitignore"
