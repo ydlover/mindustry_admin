@@ -32,7 +32,8 @@
 	"gameover" : "%s  - Force a game over",
 	"info" : "%s <IP/UUID/name...> - Find player info(s). Can optionally check for all names or IPs a player has had",
 	"slots" : "%s Display all available save slot",
-	"showAdmin" : "%s Display all admin",
+	"admins" : "%s Display all admin",
+    "mode": "%s [mode] view or fixed mode set by the current server, fixed mode set when executing HOS t or hostx commands are not allowed to specify mode,mode can be set to:pvp,attack,sandbox,survival,none",
 	"vote" : "%s <cmd> - Vote"
   },
   "info" : {
@@ -56,7 +57,8 @@
 	"welcom_admin" : "Welcome admin:%s",
 	"cpu_temperature":"CPU temperature: %.3f°C",
 	"votetick_pass":"votetick pass,all:%d,agree:%d",
-	"votetick_fail":"votetick fail,all:%d,agree:%d,admin against:%d"
+	"votetick_fail":"votetick fail,all:%d,agree:%d,admin against:%d",
+	"mode_show":"server mode is [%s],If mode is not set, you can specify a mode when executing host or hostx commands"
 },
   "error" : {
 	"cmd_timeout" : "Command %s timeout!",

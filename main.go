@@ -213,9 +213,10 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["maps"] = this.proc_mapsOrStatus
 	this.userCmdProcHandles["status"] = this.proc_mapsOrStatus
 	this.userCmdProcHandles["slots"] = this.proc_slots
-	this.userCmdProcHandles["showAdmin"] = this.proc_showAdmin
+	this.userCmdProcHandles["admins"] = this.proc_admins
 	this.userCmdProcHandles["show"] = this.proc_show
 	this.userCmdProcHandles["votetick"] = this.proc_votetick
+	this.userCmdProcHandles["mode"] = this.proc_mode
 
 }
 
@@ -342,7 +343,7 @@ func (this *Mindustry) addSuperAdmin(name string) {
 	log.Printf("add superAdmin :%s\n", name)
 }
 
-func (this *Mindustry) onlineUser(name string) {
+func (this *Mindustry) onlineUser(name string, uuid string) {
 	this.playCnt++
 
 	if _, ok := this.users[name]; ok {
@@ -350,7 +351,7 @@ func (this *Mindustry) onlineUser(name string) {
 	}
 	this.addUser(name)
 }
-func (this *Mindustry) offlineUser(name string) {
+func (this *Mindustry) offlineUser(name string, uuid string) {
 	if this.playCnt > 0 {
 		this.playCnt--
 	}
@@ -451,7 +452,7 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 			this.say(in, "error.cmd_host_fix_mode", this.mode)
 			return false
 		}
-		inputMode = inputMode
+		inputMode = this.mode
 	}
 	if len(temps) > 2 {
 		inputMode = strings.TrimSpace(temps[2])
@@ -486,7 +487,7 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 		this.say(in, "error.cmd_invalid", userInput)
 		return false
 	}
-	if inputMode != "pvp" && inputMode != "attack" && inputMode != "" && inputMode != "sandbox" {
+	if !checkMode(inputMode) {
 		this.say(in, "error.cmd_host_mode_invalid", userInput)
 		return false
 	}
@@ -625,7 +626,7 @@ func (this *Mindustry) proc_show(in io.WriteCloser, userName string, userInput s
 	this.say(in, "info.cpu_temperature", getCpuTemp())
 	return true
 }
-func (this *Mindustry) proc_showAdmin(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_admins(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
@@ -725,6 +726,33 @@ func (this *Mindustry) proc_votetick(in io.WriteCloser, userName string, userInp
 	this.say(in, "info.votetick_begin_info")
 	return true
 }
+func checkMode(inputMode string) bool {
+	if inputMode != "pvp" && inputMode != "attack" && inputMode != "" && inputMode != "sandbox" && inputMode != "survival" {
+		return false
+	}
+	return true
+}
+func (this *Mindustry) proc_mode(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	temps := strings.Split(userInput, " ")
+	if len(temps) < 2 {
+		this.say(in, "info.mode_show", this.mode)
+		return false
+	}
+	inputMode := temps[1]
+	if inputMode == "none" {
+		inputMode = ""
+	}
+	if !checkMode(inputMode) {
+		this.say(in, "error.cmd_host_mode_invalid", userInput)
+		return false
+	}
+	if isOnlyCheck {
+		return true
+	}
+	this.mode = inputMode
+	this.say(in, "info.mode_show", this.mode)
+	return true
+}
 func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput string) {
 	temps := strings.Split(userInput, " ")
 	cmdName := temps[0]
@@ -805,6 +833,16 @@ const SERVER_ERR_LOG string = "[ERR!] "
 const SERVER_READY_KEY string = "Server loaded. Type 'help' for help."
 const SERVER_STSRT_KEY string = "Opened a server on port"
 
+func getUserByOutput(key string, cmdBody string) (string, string, bool) {
+	userInfo := strings.TrimSpace(cmdBody[:len(cmdBody)-len(key)])
+	index := strings.Index(userInfo, "]")
+	if index < 0 {
+		return "", "", false
+	}
+	userName := strings.TrimSpace(userInfo[index+1:])
+	uuid := strings.TrimSpace(userInfo[1:index])
+	return userName, uuid, true
+}
 func (this *Mindustry) output(line string, in io.WriteCloser) {
 	index := strings.Index(line, SERVER_ERR_LOG)
 	if index >= 0 {
@@ -854,13 +892,17 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 	}
 
 	if strings.HasSuffix(cmdBody, USER_CONNECTED_KEY) {
-		userName := strings.TrimSpace(cmdBody[:len(cmdBody)-len(USER_CONNECTED_KEY)])
+		userName, uuid, isSucc := getUserByOutput(USER_CONNECTED_KEY, cmdBody)
+		if !isSucc {
+			log.Printf("[%s] invalid\n", cmdBody)
+			return
+		}
 		if userName == "Server" {
 			this.say(in, "error.login_forbbidden_username")
 			this.execCmd(in, "kick "+userName)
 			return
 		}
-		this.onlineUser(userName)
+		this.onlineUser(userName, uuid)
 
 		if this.users[userName].isAdmin {
 			time.Sleep(1 * time.Second)
@@ -873,8 +915,17 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 		}
 
 	} else if strings.HasSuffix(cmdBody, USER_DISCONNECTED_KEY) {
-		userName := strings.TrimSpace(cmdBody[:len(cmdBody)-len(USER_DISCONNECTED_KEY)])
-		this.offlineUser(userName)
+		userName, uuid, isSucc := getUserByOutput(USER_DISCONNECTED_KEY, cmdBody)
+		if !isSucc {
+			log.Printf("[%s] invalid\n", cmdBody)
+			return
+		}
+		if userName == "Server" {
+			this.say(in, "error.login_forbbidden_username")
+			this.execCmd(in, "kick "+userName)
+			return
+		}
+		this.offlineUser(userName, uuid)
 	} else if strings.HasPrefix(cmdBody, SERVER_READY_KEY) {
 		this.playCnt = 0
 		this.serverIsRun = true

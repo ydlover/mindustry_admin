@@ -32,7 +32,8 @@
 	"gameover" : "%s  - 结束当前游戏",
 	"info" : "%s <IP/UUID/name...> - 查找玩家信息. 可通过玩家名查找，也可通过IP查找",
 	"slots" : "%s 显示所有可用的存档",
-	"showAdmin" : "%s 查看管理员清单",
+	"admins" : "%s 查看管理员清单",
+	"mode" : "%s <mode> 查看或者当前服务器设置的固定模式,固定模式被设置时执行host或hostx命令时不允许指定模式,mode可以设置为:pvp,attack,sandbox,survival,none",
 	"vote" : "%s <cmd> - 发起投票来执行命令（普通玩家的福利），投票时间为1分钟，同意者在聊天框打1，反之打0，半数玩家同意即可执行，管理员有一票否决权"
   },
   "info" : {
@@ -56,7 +57,8 @@
 	"welcom_admin" : "欢迎管理员:%s",
 	"cpu_temperature":"CPU温度: %.3f°C",
 	"votetick_pass":"投票通过,全部人员:%d,同意者:%d",
-	"votetick_fail":"投票未过(同意比例低于50%%),全部人员:%d,同意者:%d,管理员否决:%d"
+	"votetick_fail":"投票未过(同意比例低于50%%),全部人员:%d,同意者:%d,管理员否决:%d",
+	"mode_show":"当前服务器设置的固定模式是[%s],如果未设置模式则执行host或hostx时可以指定模式，否则不能"
 },
   "error" : {
 	"cmd_timeout" : "命令(%s)超时!",
