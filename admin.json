@@ -6,11 +6,5 @@
             "last vist time": ""
         }
     ],
-    "admin": [
-        {
-            "name": "test1",
-            "id": "",
-            "last vist time": ""
-        }
-    ]
+    "admin": []
 }

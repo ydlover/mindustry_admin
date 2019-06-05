@@ -918,7 +918,7 @@ func (this *Mindustry) multiLineRsltCmdComplete(in io.WriteCloser, line string) 
 				if mapsInfo != "maps:" {
 					mapsInfo += " "
 				}
-				mapsInfo += ("[" + strconv.Itoa(index) + "]" + name)
+				mapsInfo += ("[cyan](" + strconv.Itoa(index) + ")[white]" + name)
 			}
 			this.say(in, "info.maps_list", mapsInfo)
 			return true
