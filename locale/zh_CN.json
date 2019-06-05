@@ -24,7 +24,7 @@
 	"bans" : "%s - 显示所有黑名单玩家的IP，ID",
 	"unban" : "%s <ip/ID> - 通过IP或ID将黑名单玩家移除黑名单",
 	"admin" : "%s <username...> - 借助玩家名给予一名在线玩家管理员权限",
-	"unadmin" : "%s <username...> - 移除上一个命令所给予的权限",
+	"unadmin" : "%s <username...> - 移除admin命令所给予的权限",
 	"admins" : "%s - 显示全部管理员",
 	"runwave" : "%s - 加载下一波敌人",
 	"load" : "%s <slot> - 加载存档",
@@ -41,6 +41,7 @@
 	"server_restart" : "服务器即将重启. 请在10S后重新登陆!",
 	"save_slot_succ" : "保存存档(%s)成功!",
 	"admin_added" : " [%s]获得管理员权限",
+	"admin_removed" : " [%s]移除管理员权限",
 	"cmd" : " 命令 %s",
 	"super_admin_cmd" : "超级管理员支持命令:%s",
 	"admin_cmd" : "管理员支持命令:%s",
@@ -61,6 +62,7 @@
 	"mode_show":"当前服务器设置的固定模式是[%s],如果未设置模式则执行host或hostx时可以指定模式，否则不能"
 },
   "error" : {
+	"admin_unremoved" : " [%s]没找到,移除管理员权限",
 	"cmd_timeout" : "命令(%s)超时!",
 	"cmd_length_invalid" : "命令(%s)无效,必须输入地图名或ID，如果不知道地图ID，请通过maps命令查看!",
 	"cmd_hostx_id_not_number" : "命令(%s)无效,请输入地图!",

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -33,6 +34,15 @@ func StripColor(str string) string {
 
 type UserCmdProcHandle func(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool
 
+type Admin struct {
+	Name         string `json:"name"`
+	Id           string `json:"id"`
+	LastVistTime string `json:"last vist time"`
+}
+type AdminCfg struct {
+	SuperAdminList []Admin `json:"super admin"`
+	AdminList      []Admin `json:"admin"`
+}
 type User struct {
 	name         string
 	isAdmin      bool
@@ -47,9 +57,7 @@ type Cmd struct {
 
 type Mindustry struct {
 	name               string
-	admins             []string
-	cfgAdmin           string
-	cfgSuperAdmin      string
+	adminCfg           *AdminCfg
 	jarPath            string
 	users              map[string]User
 	votetickUsers      map[string]int
@@ -74,6 +82,63 @@ type Mindustry struct {
 	i18n               lingo.T
 }
 
+func (this *Mindustry) getSuperAdminList() string {
+	list := ""
+	for _, admin := range this.adminCfg.SuperAdminList {
+		if list != "" {
+			list += ","
+		}
+		list += admin.Name
+	}
+	return list
+}
+func (this *Mindustry) getAdminList() string {
+	list := ""
+	for _, admin := range this.adminCfg.AdminList {
+		if list != "" {
+			list += ","
+		}
+		list += admin.Name
+	}
+	return list
+
+}
+
+func (this *Mindustry) loadAdminConfig() {
+	data, err := ioutil.ReadFile("admin.json")
+	if err != nil {
+		log.Printf("[ERR]Not found admin.json!\n")
+		return
+	}
+	err = json.Unmarshal(data, this.adminCfg)
+	if err != nil {
+		log.Printf("[ERR]Load cfg fail:admin.json!\n")
+		return
+	}
+	for _, admin := range this.adminCfg.SuperAdminList {
+		log.Printf("SuperAdmin:%s(%s)\n", admin.Name, admin.Id)
+	}
+	for _, admin := range this.adminCfg.AdminList {
+		log.Printf("Admin:%s(%s)\n", admin.Name, admin.Id)
+	}
+}
+func WriteConfig(cfg string, jsonByte []byte) {
+	f, err := os.OpenFile(cfg, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		log.Printf("write config file %s fail:%v\n", cfg, err)
+	}
+	defer f.Close()
+	f.Write(jsonByte)
+	f.Sync()
+}
+func (this *Mindustry) writeAdminConfig() {
+	data, err := json.MarshalIndent(this.adminCfg, "", "    ")
+	if err != nil {
+		log.Println("[ERR]writeAdminCfg fail:", err)
+		return
+	}
+	WriteConfig("admin.json", data)
+}
 func (this *Mindustry) loadConfig() {
 	this.l = lingo.New("en_US", "./locale")
 	cfg, err := config.ReadDefault("config.ini")
@@ -85,28 +150,6 @@ func (this *Mindustry) loadConfig() {
 		_, err := cfg.SectionOptions("server")
 		if err == nil {
 			optionValue := ""
-			optionValue, err = cfg.String("server", "admins")
-			if err == nil {
-				optionValue := strings.TrimSpace(optionValue)
-				admins := strings.Split(optionValue, ",")
-				this.cfgAdmin = optionValue
-				log.Printf("[ini]found admins:%v\n", admins)
-				for _, admin := range admins {
-					this.addUser(admin)
-					this.addAdmin(admin)
-				}
-			}
-			optionValue, err = cfg.String("server", "superAdmins")
-			if err == nil {
-				optionValue := strings.TrimSpace(optionValue)
-				supAdmins := strings.Split(optionValue, ",")
-				this.cfgSuperAdmin = optionValue
-				log.Printf("[ini]found supAdmins:%v\n", supAdmins)
-				for _, supAdmin := range supAdmins {
-					this.addUser(supAdmin)
-					this.addSuperAdmin(supAdmin)
-				}
-			}
 			optionValue, err = cfg.String("server", "superAdminCmds")
 			if err == nil {
 				optionValue := strings.TrimSpace(optionValue)
@@ -199,10 +242,11 @@ func (this *Mindustry) init() {
 	this.name = fmt.Sprintf("mindustry-%d", rand.Int())
 	this.jarPath = "server-release.jar"
 	this.serverIsStart = true
+	this.adminCfg = new(AdminCfg)
 	this.loadConfig()
-	this.addUser("Server")
-	this.addSuperAdmin("Server")
+	this.loadAdminConfig()
 	this.userCmdProcHandles["admin"] = this.proc_admin
+	this.userCmdProcHandles["unadmin"] = this.proc_unadmin
 	this.userCmdProcHandles["directCmd"] = this.proc_directCmd
 	this.userCmdProcHandles["gameover"] = this.proc_gameover
 	this.userCmdProcHandles["help"] = this.proc_help
@@ -263,6 +307,7 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 			if inputCmd == "stop" || inputCmd == "exit" {
 				this.serverIsStart = false
 				this.serverIsRun = false
+				this.writeAdminConfig()
 			}
 			if inputCmd == "host" || inputCmd == "load" {
 				this.serverIsStart = true
@@ -318,19 +363,21 @@ func (this *Mindustry) addUser(name string) {
 	this.users[name] = User{name, false, false, 0}
 	log.Printf("add user info :%s\n", name)
 }
-func (this *Mindustry) addAdmin(name string) {
+func (this *Mindustry) onlineAdmin(name string) {
 	if _, ok := this.users[name]; !ok {
 		log.Printf("user %s not found\n", name)
 		return
 	}
 	tempUser := this.users[name]
 	tempUser.isAdmin = true
-	tempUser.level = 1
+	if tempUser.level < 1 {
+		tempUser.level = 1
+	}
 	this.users[name] = tempUser
-	log.Printf("add admin :%s\n", name)
+	log.Printf("online admin :%s\n", name)
 }
 
-func (this *Mindustry) addSuperAdmin(name string) {
+func (this *Mindustry) onlineSuperAdmin(name string) {
 	if _, ok := this.users[name]; !ok {
 		log.Printf("user %s not found\n", name)
 		return
@@ -338,9 +385,65 @@ func (this *Mindustry) addSuperAdmin(name string) {
 	tempUser := this.users[name]
 	tempUser.isAdmin = true
 	tempUser.isSuperAdmin = true
-	tempUser.level = 9
+	if tempUser.level < 9 {
+		tempUser.level = 9
+	}
 	this.users[name] = tempUser
-	log.Printf("add superAdmin :%s\n", name)
+	log.Printf("online superAdmin :%s\n", name)
+}
+
+func (this *Mindustry) judgeAndUpdateAdmin(admin *Admin, name string, uuid string) (bool, bool) {
+	if admin.Name != name {
+		return false, false
+	}
+	if admin.Id == "" {
+		admin.Id = uuid
+		log.Printf("admin %s[%s] first login.\n", name, uuid)
+		return true, true
+	}
+	if admin.Id == uuid {
+		return true, false
+	}
+	return false, false
+}
+
+const (
+	NORM = iota
+	ADMIN
+	SUPER_ADMIN
+)
+
+func (this *Mindustry) judgeRole(role int, adminList []Admin, name string, uuid string) (int, bool) {
+	isAdmin := false
+	isUpdate := false
+	for index, admin := range adminList {
+		isTempAdmin, isTempUpdate := this.judgeAndUpdateAdmin(&admin, name, uuid)
+		if !isTempAdmin {
+			continue
+		}
+		isAdmin = true
+		if isTempUpdate {
+			isUpdate = true
+			adminList[index] = admin
+		}
+		break
+	}
+	if isAdmin {
+		return role, isUpdate
+	} else {
+		return NORM, false
+	}
+}
+
+func (this *Mindustry) getUserRole(name string, uuid string) int {
+	role, isUpdate := this.judgeRole(ADMIN, this.adminCfg.AdminList, name, uuid)
+	if role == NORM {
+		role, isUpdate = this.judgeRole(SUPER_ADMIN, this.adminCfg.SuperAdminList, name, uuid)
+	}
+	if isUpdate {
+		this.writeAdminConfig()
+	}
+	return role
 }
 
 func (this *Mindustry) onlineUser(name string, uuid string) {
@@ -350,20 +453,24 @@ func (this *Mindustry) onlineUser(name string, uuid string) {
 		return
 	}
 	this.addUser(name)
+	role := this.getUserRole(name, uuid)
+	if role == SUPER_ADMIN {
+		this.onlineSuperAdmin(name)
+	} else if role == ADMIN {
+		this.onlineAdmin(name)
+	}
 }
 func (this *Mindustry) offlineUser(name string, uuid string) {
 	if this.playCnt > 0 {
 		this.playCnt--
 	}
 
-	if _, ok := this.users[name]; ok {
+	if _, ok := this.users[name]; !ok {
 		return
 	}
 
-	if !(this.users[name].isAdmin || this.users[name].isSuperAdmin) {
-		this.delUser(name)
-		return
-	}
+	this.delUser(name)
+	return
 }
 func (this *Mindustry) delUser(name string) {
 	if _, ok := this.users[name]; !ok {
@@ -547,21 +654,45 @@ func (this *Mindustry) proc_load(in io.WriteCloser, userName string, userInput s
 	return true
 }
 func (this *Mindustry) proc_admin(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
-	targetName := userInput[len("admin"):]
+	targetName := userInput[len("admin "):]
 	targetName = strings.TrimSpace(targetName)
 	if targetName == "" {
 		this.say(in, "error.cmd_admin_name_invalid")
 		return false
-	} else {
-		if isOnlyCheck {
-			return true
-		}
-		this.addAdmin(targetName)
-		this.execCmd(in, userInput)
-		this.say(in, "info.admin_added", targetName)
 	}
+	if isOnlyCheck {
+		return true
+	}
+	newAdmin := Admin{targetName, "", ""}
+	this.adminCfg.AdminList = append(this.adminCfg.AdminList, newAdmin)
+	this.writeAdminConfig()
+	this.say(in, "info.admin_added", targetName)
+
 	return true
 }
+func (this *Mindustry) proc_unadmin(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	targetName := userInput[len("unadmin "):]
+	targetName = strings.TrimSpace(targetName)
+	if targetName == "" {
+		this.say(in, "error.cmd_admin_name_invalid")
+		return false
+	}
+	if isOnlyCheck {
+		return true
+	}
+	this.execCmd(in, "unadmin "+targetName)
+	for i, admin := range this.adminCfg.AdminList {
+		if admin.Name == targetName {
+			this.adminCfg.AdminList = append(this.adminCfg.AdminList[:i], this.adminCfg.AdminList[i+1:]...)
+			this.writeAdminConfig()
+			this.say(in, "info.admin_removed", targetName)
+			return true
+		}
+	}
+	this.say(in, "error.admin_unremoved", targetName)
+	return false
+}
+
 func (this *Mindustry) proc_directCmd(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
@@ -630,8 +761,8 @@ func (this *Mindustry) proc_admins(in io.WriteCloser, userName string, userInput
 	if isOnlyCheck {
 		return true
 	}
-	this.say(in, "info.super_admin_list", this.cfgSuperAdmin)
-	this.say(in, "info.admin_list", this.cfgAdmin)
+	this.say(in, "info.super_admin_list", this.getSuperAdminList())
+	this.say(in, "info.admin_list", this.getAdminList())
 	return true
 
 }
