@@ -79,8 +79,8 @@
 	"cmd_votetick_not_permit" : "[red]Votetick cmd not permit:%s",
 	"cmd_votetick_cmd_error" : "[red]Votetick cmd error:%s",
 	"cmd_votetick_cmd_not_support" : "[red]Votetick cmd not support:%s",
-	"cmd_permission_denied" : "[red]User[%s] cmd :%s , Permission denied!",
-	"cmd_invalid_user" : "[red]Proc user[%s] cmd :%s invalid!",
+	"cmd_permission_denied" : "[red]cmd :%s , Permission denied!",
+	"cmd_invalid_user" : "[red]Proc cmd :%s invalid!",
 	"cmd_host_fix_mode" : "[red]Server is locked to the mode[%s]. If you want to play in other modes, please contact Super Administrator.",
 	"login_forbbidden_username" : "[red]'Server' forbidden use!"
 }

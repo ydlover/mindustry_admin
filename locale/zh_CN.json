@@ -79,8 +79,8 @@
 	"cmd_votetick_not_permit" : "你没有执行目标命令的权限:%s",
 	"cmd_votetick_cmd_error" : "投票目标命令错误:%s",
 	"cmd_votetick_cmd_not_support" : "投票目标命令不支持:%s",
-	"cmd_permission_denied" : "玩家[%s]没有权限执行命令:%s!",
-	"cmd_invalid_user" : "玩家[%s]执行命令无效:%s!",
+	"cmd_permission_denied" : "没有权限执行命令:%s!",
+	"cmd_invalid_user" : "执行命令无效:%s!",
 	"cmd_host_fix_mode" : "服务器工作在固定模式[%s]，如果你想游玩其它模式，请联系超级管理员",
 	"login_forbbidden_username" : "'Server'这个用户名被禁止使用!"
 }

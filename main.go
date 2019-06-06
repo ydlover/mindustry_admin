@@ -82,21 +82,18 @@ type Mindustry struct {
 	i18n               lingo.T
 }
 
-func (this *Mindustry) getSuperAdminList() string {
+func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
 	list := ""
-	for _, admin := range this.adminCfg.SuperAdminList {
+	for _, admin := range adminList {
 		if list != "" {
 			list += ","
 		}
-		list += admin.Name
-	}
-	return list
-}
-func (this *Mindustry) getAdminList() string {
-	list := ""
-	for _, admin := range this.adminCfg.AdminList {
-		if list != "" {
-			list += ","
+		if isShowWarn {
+			if admin.Id == "" {
+				list += "[yellow]"
+			} else {
+				list += "[green]"
+			}
 		}
 		list += admin.Name
 	}
@@ -262,6 +259,13 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["votetick"] = this.proc_votetick
 	this.userCmdProcHandles["mode"] = this.proc_mode
 
+}
+
+var colorCodeReg = regexp.MustCompile(`\[.*?\]|#[0-9a-fA-F]+`)
+
+func removeColorCode(str string) string {
+	newStr := colorCodeReg.ReplaceAllString(str, "")
+	return newStr
 }
 
 func (this *Mindustry) execCommand(commandName string, params []string) error {
@@ -761,8 +765,9 @@ func (this *Mindustry) proc_admins(in io.WriteCloser, userName string, userInput
 	if isOnlyCheck {
 		return true
 	}
-	this.say(in, "info.super_admin_list", this.getSuperAdminList())
-	this.say(in, "info.admin_list", this.getAdminList())
+	isShowWarn := this.users[userName].isSuperAdmin
+	this.say(in, "info.super_admin_list", this.getAdminList(this.adminCfg.SuperAdminList, isShowWarn))
+	this.say(in, "info.admin_list", this.getAdminList(this.adminCfg.AdminList, isShowWarn))
 	return true
 
 }
@@ -890,7 +895,7 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 
 	if cmd, ok := this.cmds[cmdName]; ok {
 		if this.users[userName].level < cmd.level {
-			this.say(in, "error.cmd_permission_denied", userName, cmdName)
+			this.say(in, "error.cmd_permission_denied", cmdName)
 			return
 		} else {
 			if this.currProcCmd != "" {
@@ -906,7 +911,7 @@ func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput 
 		}
 
 	} else {
-		this.say(in, "error.cmd_invalid_user", userName, cmdName)
+		this.say(in, "error.cmd_invalid_user", cmdName)
 	}
 }
 func (this *Mindustry) multiLineRsltCmdComplete(in io.WriteCloser, line string) bool {
