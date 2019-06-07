@@ -34,7 +34,7 @@
 	"slots" : "%s [sky]Display all available save slots",
 	"admins" : "%s [sky]Display all[] [cyan]Admins[]",
     	"mode": "%s [mode] [sky]view or fixed mode set by the current server, fixed mode set when executing host or hostx commands are not allowed to specify mode, Modes: pvp, attack, sandbox, survival, none",
-	"votetick" : "%s <cmd> - [sky]Votetick"
+	"votetick" : "%s <cmd> - [sky]Votetick(60 second), vote by sending 1 or 0 (Yes:1, No:0)"
   },
   "info" : {
 	"auto_save" : "Auto save %d",
@@ -54,7 +54,7 @@
 	"maps_list" : "Maps:%s",
 	"votetick_in_progress" : "Votetick is in progress, please wait!",
 	"votetick_begin_info" : "Votetick started (60 second), vote by sending 1 or 0 (Yes:1, No:0)",
-	"welcom_super_admin" : "Welcome [charteuse]Super admin[]:::::::::::::::: %s",
+	"welcom_super_admin" : "Welcome [charteuse]Super admin [red]%s",
 	"welcom_admin" : "Welcome [cyan]Admin[]:%s",
 	"cpu_temperature":"CPU temperature: %.3f°C",
 	"votetick_pass":"Votetick passed, all:%d, agree:%d",

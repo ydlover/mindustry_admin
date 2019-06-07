@@ -3,3 +3,4 @@ logs/
 mindustry_admin*
 server-release.jar
 release*.zip
+.DS_Store

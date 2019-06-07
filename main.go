@@ -9,6 +9,8 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -42,6 +44,17 @@ type Admin struct {
 type AdminCfg struct {
 	SuperAdminList []Admin `json:"super admin"`
 	AdminList      []Admin `json:"admin"`
+}
+
+type Ban struct {
+	Name   string `json:"name"`
+	Id     string `json:"id"`
+	Ip     string `json:"ip"`
+	Reason string `json:"reason"`
+	Time   string `json:"time"`
+}
+type BanCfg struct {
+	BanList []Ban `json:"ban list"`
 }
 type User struct {
 	name         string
@@ -80,6 +93,8 @@ type Mindustry struct {
 	userCmdProcHandles map[string]UserCmdProcHandle
 	l                  *lingo.L
 	i18n               lingo.T
+	banCfg             string
+	remoteBanCfg       *BanCfg
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -105,7 +120,95 @@ func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
 	return list
 
 }
+func findInBan(banCfgList []Ban, id string) bool {
+	for _, currBan := range banCfgList {
+		if id == currBan.Id {
+			return true
+		}
+	}
+	return false
+}
+func (this *Mindustry) netBan(in io.WriteCloser) {
+	if this.banCfg == "" {
+		return
+	}
 
+	client := &http.Client{
+		Transport: &http.Transport{
+			Dial: func(netw, addr string) (net.Conn, error) {
+				deadline := time.Now().Add(5 * time.Second)
+				c, err := net.DialTimeout(netw, addr, time.Second*5)
+				if err != nil {
+					return nil, err
+				}
+				c.SetDeadline(deadline)
+				return c, nil
+			},
+		},
+	}
+	request, netErr := http.NewRequest("GET", this.banCfg, nil)
+	if netErr != nil {
+		log.Printf("[ERR]Load remote banb cfg fail:%s,netError:%v!\n", this.banCfg, netErr)
+		return
+	}
+	response, responseErr := client.Do(request)
+	if responseErr != nil {
+		log.Printf("[ERR]Load remote banb cfg fail:%s,netError:%v!\n", this.banCfg, responseErr)
+		return
+	}
+	if response.StatusCode == 200 {
+		body, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			log.Printf("[ERR]Load remote banb cfg io fail:%s!\n", this.banCfg)
+			return
+		}
+		var currRemoteBanCfg = BanCfg{}
+		err = json.Unmarshal(body, &currRemoteBanCfg)
+		if err != nil {
+			log.Printf("[ERR]Load remote banb cfg fail:%s!\n", this.banCfg)
+			return
+		}
+		isSame := true
+		if len(this.remoteBanCfg.BanList) == len(currRemoteBanCfg.BanList) {
+			for _, remoteBan := range this.remoteBanCfg.BanList {
+				if !findInBan(currRemoteBanCfg.BanList, remoteBan.Id) {
+					isSame = false
+					break
+				}
+			}
+		} else {
+			isSame = false
+		}
+		if isSame {
+			return
+		}
+		var unbanList []string
+		var banList []string
+		unbanList = make([]string, 0)
+		banList = make([]string, 0)
+		for _, remoteBan := range this.remoteBanCfg.BanList {
+			if !findInBan(currRemoteBanCfg.BanList, remoteBan.Id) {
+				unbanList = append(unbanList, remoteBan.Id)
+			}
+		}
+
+		for _, currBan := range currRemoteBanCfg.BanList {
+			if !findInBan(this.remoteBanCfg.BanList, currBan.Id) {
+				banList = append(banList, currBan.Id)
+			}
+		}
+		for _, id := range unbanList {
+			this.execCmd(in, "unban "+id)
+		}
+		for _, id := range banList {
+			this.execCmd(in, "ban id "+id)
+		}
+		*this.remoteBanCfg = currRemoteBanCfg
+	} else {
+		log.Printf("[ERR]Load remote banb cfg fail:%s,remote response:%d!\n", this.banCfg, response.StatusCode)
+	}
+
+}
 func (this *Mindustry) loadAdminConfig() {
 	data, err := ioutil.ReadFile("admin.json")
 	if err != nil {
@@ -229,6 +332,12 @@ func (this *Mindustry) loadConfig() {
 				this.i18n = this.l.TranslationsForLocale("en_US")
 				log.Printf("[ini]lanage cfg invalid,use english\n")
 			}
+
+			optionValue, err = cfg.String("server", "banCfg")
+			if err == nil {
+				banCfg := strings.TrimSpace(optionValue)
+				this.banCfg = banCfg
+			}
 		}
 	}
 
@@ -245,6 +354,7 @@ func (this *Mindustry) init() {
 	this.jarPath = "server-release.jar"
 	this.serverIsStart = true
 	this.adminCfg = new(AdminCfg)
+	this.remoteBanCfg = new(BanCfg)
 	this.loadConfig()
 	this.loadAdminConfig()
 	this.userCmdProcHandles["admin"] = this.proc_admin
@@ -256,8 +366,8 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["hostx"] = this.proc_host
 	this.userCmdProcHandles["save"] = this.proc_save
 	this.userCmdProcHandles["load"] = this.proc_load
-	this.userCmdProcHandles["maps"] = this.proc_mapsOrStatus
-	this.userCmdProcHandles["status"] = this.proc_mapsOrStatus
+	this.userCmdProcHandles["maps"] = this.proc_maps
+	this.userCmdProcHandles["status"] = this.proc_status
 	this.userCmdProcHandles["slots"] = this.proc_slots
 	this.userCmdProcHandles["admins"] = this.proc_admins
 	this.userCmdProcHandles["show"] = this.proc_show
@@ -344,6 +454,7 @@ func (this *Mindustry) hourTask(in io.WriteCloser) {
 	if this.serverIsRun {
 		this.execCmd(in, "save "+strconv.Itoa(hour))
 		this.say(in, "info.auto_save", hour)
+		this.netBan(in)
 	} else {
 		log.Printf("game is not running.\n")
 	}
@@ -534,32 +645,35 @@ func getSlotList() string {
 	}
 	return strings.Join(slotList, ",")
 }
+func (this *Mindustry) cmdWaitTimeout(in io.WriteCloser, userName string, userInput string, cmdName string) {
+	go func() {
+		timer := time.NewTimer(time.Duration(5) * time.Second)
+		<-timer.C
+		if this.currProcCmd != "" {
+			this.say(in, "error.cmd_timeout", this.currProcCmd)
+			this.currProcCmd = ""
+		}
+	}()
+	this.currProcCmd = cmdName
+}
 
-func (this *Mindustry) proc_mapsOrStatus(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_maps(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
-	temps := strings.Split(userInput, " ")
-	cmdName := temps[0]
+	this.cmdWaitTimeout(in, userName, userInput, "maps")
+	this.execCmd(in, "reloadmaps")
+	this.maps = this.maps[0:0]
+	this.execCmd(in, "maps")
+	return true
+}
+func (this *Mindustry) proc_status(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	if isOnlyCheck {
+		return true
+	}
+	this.cmdWaitTimeout(in, userName, userInput, "status")
+	this.execCmd(in, "status")
 
-	if cmdName == "maps" || cmdName == "status" {
-		go func() {
-			timer := time.NewTimer(time.Duration(5) * time.Second)
-			<-timer.C
-			if this.currProcCmd != "" {
-				this.say(in, "error.cmd_timeout", this.currProcCmd)
-				this.currProcCmd = ""
-			}
-		}()
-		this.currProcCmd = cmdName
-	}
-	if cmdName == "maps" {
-		this.execCmd(in, "reloadmaps")
-		this.maps = this.maps[0:0]
-		this.execCmd(in, "maps")
-	} else if cmdName == "status" {
-		this.execCmd(in, "status")
-	}
 	return true
 }
 func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
@@ -1079,6 +1193,9 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 	} else if strings.HasPrefix(cmdBody, SERVER_READY_KEY) {
 		this.playCnt = 0
 		this.serverIsRun = true
+		this.netBan(in)
+		this.netBan(in)
+		this.netBan(in)
 
 		this.execCmd(in, "name "+this.name)
 		this.execCmd(in, "port "+strconv.Itoa(this.port))
