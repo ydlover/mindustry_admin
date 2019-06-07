@@ -96,6 +96,11 @@ func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
 			}
 		}
 		list += admin.Name
+		if admin.LastVistTime != "" {
+			list += "("
+			list += admin.LastVistTime
+			list += ")"
+		}
 	}
 	return list
 
@@ -396,19 +401,28 @@ func (this *Mindustry) onlineSuperAdmin(name string) {
 	log.Printf("online superAdmin :%s\n", name)
 }
 
+func getNowDate() string {
+	return time.Now().Format("06-01-02")
+}
 func (this *Mindustry) judgeAndUpdateAdmin(admin *Admin, name string, uuid string) (bool, bool) {
 	if admin.Name != name {
 		return false, false
 	}
 	if admin.Id == "" {
 		admin.Id = uuid
+		admin.LastVistTime = getNowDate()
 		log.Printf("admin %s[%s] first login.\n", name, uuid)
 		return true, true
 	}
-	if admin.Id == uuid {
+	if admin.Id != uuid {
+		return false, false
+	}
+	nowDate := getNowDate()
+	if nowDate == admin.LastVistTime {
 		return true, false
 	}
-	return false, false
+	admin.LastVistTime = nowDate
+	return true, true
 }
 
 const (
