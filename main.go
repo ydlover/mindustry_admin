@@ -786,7 +786,7 @@ func (this *Mindustry) proc_load(in io.WriteCloser, userName string, userInput s
 	return true
 }
 func (this *Mindustry) proc_admin(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
-	targetName := userInput[len("admin "):]
+	targetName := userInput[len("admin"):]
 	targetName = strings.TrimSpace(targetName)
 	if targetName == "" {
 		this.say(in, "error.cmd_admin_name_invalid")
@@ -803,7 +803,7 @@ func (this *Mindustry) proc_admin(in io.WriteCloser, userName string, userInput 
 	return true
 }
 func (this *Mindustry) proc_unadmin(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
-	targetName := userInput[len("unadmin "):]
+	targetName := userInput[len("unadmin"):]
 	targetName = strings.TrimSpace(targetName)
 	if targetName == "" {
 		this.say(in, "error.cmd_admin_name_invalid")
