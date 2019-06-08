@@ -69,32 +69,33 @@ type Cmd struct {
 }
 
 type Mindustry struct {
-	name               string
-	adminCfg           *AdminCfg
-	jarPath            string
-	users              map[string]User
-	votetickUsers      map[string]int
-	serverOutR         *regexp.Regexp
-	cfgAdminCmds       string
-	cfgSuperAdminCmds  string
-	cfgNormCmds        string
-	cfgVoteCmds        string
-	cmds               map[string]Cmd
-	cmdHelps           map[string]string
-	port               int
-	mode               string
-	cmdFailReason      string
-	currProcCmd        string
-	notice             string //cron task auto notice msg
-	playCnt            int
-	serverIsStart      bool
-	serverIsRun        bool
-	maps               []string
-	userCmdProcHandles map[string]UserCmdProcHandle
-	l                  *lingo.L
-	i18n               lingo.T
-	banCfg             string
-	remoteBanCfg       *BanCfg
+	name                string
+	adminCfg            *AdminCfg
+	jarPath             string
+	users               map[string]User
+	votetickUsers       map[string]int
+	serverOutR          *regexp.Regexp
+	cfgAdminCmds        string
+	cfgSuperAdminCmds   string
+	cfgNormCmds         string
+	cfgVoteCmds         string
+	cmds                map[string]Cmd
+	cmdHelps            map[string]string
+	port                int
+	mode                string
+	cmdFailReason       string
+	currProcCmd         string
+	notice              string //cron task auto notice msg
+	playCnt             int
+	serverIsStart       bool
+	serverIsRun         bool
+	maps                []string
+	userCmdProcHandles  map[string]UserCmdProcHandle
+	l                   *lingo.L
+	i18n                lingo.T
+	banCfg              string
+	remoteBanCfg        *BanCfg
+	m_isPermitMapModify bool
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -373,6 +374,7 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["show"] = this.proc_show
 	this.userCmdProcHandles["votetick"] = this.proc_votetick
 	this.userCmdProcHandles["mode"] = this.proc_mode
+	this.userCmdProcHandles["mapManage"] = this.proc_mapManage
 
 }
 
@@ -1017,6 +1019,25 @@ func (this *Mindustry) proc_mode(in io.WriteCloser, userName string, userInput s
 	this.say(in, "info.mode_show", this.mode)
 	return true
 }
+
+func (this *Mindustry) proc_mapManage(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+	if this.m_isPermitMapModify {
+		this.say(in, "error.cmd_mapManage_started")
+		return false
+	}
+	if isOnlyCheck {
+		return true
+	}
+	this.say(in, "info.cmd_mapManage_start")
+	this.m_isPermitMapModify = true
+	go func() {
+		timer := time.NewTimer(time.Duration(600) * time.Second)
+		<-timer.C
+		this.m_isPermitMapModify = false
+		this.say(in, "info.cmd_mapManage_end")
+	}()
+	return true
+}
 func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput string) {
 	temps := strings.Split(userInput, " ")
 	cmdName := temps[0]
@@ -1218,9 +1239,13 @@ func (this *Mindustry) run() {
 		}
 	}
 }
-func startMapUpServer(port int) {
+func (this *Mindustry) isPermitMapModify() bool {
+	return this.m_isPermitMapModify
+}
+
+func (this *Mindustry) startMapUpServer(port int) {
 	go func(serverPort int) {
-		StartFileUpServer(serverPort)
+		StartFileUpServer(serverPort, this)
 	}(port)
 }
 func main() {
@@ -1230,10 +1255,10 @@ func main() {
 	flag.Parse()
 	log.Printf("version:%s!\n", _VERSION_)
 
-	startMapUpServer(*map_port)
 	mindustry := Mindustry{}
 	mindustry.init()
 	mindustry.mode = *mode
 	mindustry.port = *port
+	mindustry.startMapUpServer(*map_port)
 	mindustry.run()
 }

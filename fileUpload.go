@@ -29,7 +29,10 @@ func init() {
 		fmt.Println(err)
 	}
 }
-func StartFileUpServer(port int) {
+
+var m_mindustryServer *Mindustry
+
+func StartFileUpServer(port int, mindustryServer *Mindustry) {
 	mux := http.NewServeMux()
 	fs := http.FileServer(http.Dir("map_manager"))
 	mux.Handle("/", fs)
@@ -48,6 +51,7 @@ func StartFileUpServer(port int) {
 		server.Close()
 		fmt.Printf("file up server shutdownf%s", s)
 	}()
+	m_mindustryServer = mindustryServer
 	server.ListenAndServe()
 }
 
@@ -57,8 +61,20 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		err = handleGet(w, r)
 	case "POST":
+		if !m_mindustryServer.isPermitMapModify() {
+			fmt.Printf("map up is not permit!\n")
+			w.WriteHeader(403)
+			w.Write([]byte("not_permit"))
+			return
+		}
 		err = handlePost(w, r)
 	case "DELETE":
+		if !m_mindustryServer.isPermitMapModify() {
+			fmt.Printf("map delete is not permit!\n")
+			w.WriteHeader(200)
+			w.Write([]byte("not_permit"))
+			return
+		}
 		err = handleDelete(w, r)
 	}
 	if err != nil {
@@ -68,7 +84,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request) (err error) {
-	fmt.Println("GET: " + r.URL.Path)
+	//fmt.Println("GET: " + r.URL.Path)
 	name := path.Base(r.URL.Path)
 	if strings.Contains(name, ".") {
 		fmt.Println("download: " + name)
@@ -129,9 +145,8 @@ func handlePost(w http.ResponseWriter, r *http.Request) (err error) {
 	return
 }
 func handleDelete(w http.ResponseWriter, r *http.Request) (err error) {
-	fmt.Println("DELETE: " + r.URL.Path)
 	name := path.Base(r.URL.Path)
-	fmt.Println("DELETE: " + name)
+	fmt.Println("DELETE: " + r.URL.Path + "," + name)
 	err = os.Remove(FILE_PATH + name)
 	if err != nil {
 		fmt.Println(err)
@@ -167,7 +182,7 @@ func exists(path string) (bool, error) {
 	return true, err
 }
 func check(name string) bool {
-	ext := []string{".mmap"}
+	ext := []string{".msav"}
 
 	for _, v := range ext {
 		if v == name {

@@ -33,13 +33,18 @@ $(function () {
 		$.ajax({
 			type: "DELETE",
 			url: deleteUrl,
-			success: function () {
+			success: function (msg) {
+				if (msg == "not_permit"){
+					alert(STRINGS.NOT_PERMIT);
+					window.location.reload();
+					return;
+				}
 				setTimeout(function () {
 					fileInfoContainer.slideUp('fast', function () {
 						fileInfoContainer.remove();
 					});
 				}, 300);
-			} 
+			}
 		});
 	}
 
@@ -133,6 +138,14 @@ $(function () {
 			fileElementId: eleFileId,
 			dataType: 'text',
 			success: function (data, status) {
+				alert(status)
+				alert(data)
+				if (data == "not_permit"){
+					alert(STRINGS.NOT_PERMIT);
+					window.location.reload();
+					return;
+				}
+				
 				row.removeClass('progress_wrapper');
 				row.find('.progress').remove();
 				row.find('.precent').text('').remove();
@@ -163,7 +176,7 @@ $(function () {
 	function checkFileName(fileName) {
         var suffixIndex=fileName.lastIndexOf(".");  
         var suffix=fileName.substring(suffixIndex+1).toUpperCase();  
-        if(suffix!="MMAP"){  
+        if(suffix!="MSAV"){  
             return STRINGS.UNSUPPORTED_FILE_TYPE;
 		}
 
@@ -332,7 +345,7 @@ $(function () {
 					var eleProgress = ele.prev();
 					eleProgress.width(483 * progress);
 				},
-				success: function (item) {
+				success: function (item, XMLHttpRequest) {
 					var fileName = item.getFilename();
 					var row = $("#right .file [filename='" + escape(fileName) + "']").parent();
 
@@ -348,9 +361,11 @@ $(function () {
 						.appendTo(row);
 				},
 				error: function (item) {
+					alert(STRINGS.NOT_PERMIT);
 					var fileName = item.getFilename();
 					var row = $("#right .file [filename='" + escape(fileName) + "']").parent();
 					row.remove();
+					window.location.reload();
 				},
 				aborted: function (item) {
 					var fileName = item.getFilename();
