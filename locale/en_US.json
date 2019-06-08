@@ -32,9 +32,9 @@
 	"gameover" : "%s  - [sky]Force a game over",
 	"info" : "%s <IP/UUID/name...> - [sky]Find player info(s). Can optionally check for all names or IPs a player has had",
 	"slots" : "%s [sky]Display all available save slots",
-	"admins" : "%s [sky]Display all[] [cyan]Admins[]",
-    	"mode": "%s [mode] [sky]view or fixed mode set by the current server, fixed mode set when executing host or hostx commands are not allowed to specify mode, Modes: pvp, attack, sandbox, survival, none",
-	"votetick" : "%s <cmd> - [sky]Votetick(60 second), vote by sending 1 or 0 (Yes:1, No:0)"
+    "mode": "%s [mode] [sky]view or fixed mode set by the current server, fixed mode set when executing host or hostx commands are not allowed to specify mode, Modes: pvp, attack, sandbox, survival, none",
+	"votetick" : "%s <cmd> - [sky]Votetick(60 second), vote by sending 1 or 0 (Yes:1, No:0)",
+	"mapManage" : "%s - [sky]map manage is started(600 second),Maps will be uploaded and deleted."
   },
   "info" : {
 	"auto_save" : "Auto save %d",
@@ -59,7 +59,9 @@
 	"cpu_temperature":"CPU temperature: %.3f°C",
 	"votetick_pass":"Votetick passed, all:%d, agree:%d",
 	"votetick_fail":"Votetick failed, all:%d, agree:%d, [cyan]Admin[] against:%d",
-	"mode_show":"Server mode is [%s],If mode is not set, you can specify a mode when executing host or hostx commands"
+	"mode_show":"Server mode is [%s],If mode is not set, you can specify a mode when executing host or hostx commands",
+	"cmd_mapManage_start": "map manage is started(600 second),Maps will be uploaded and deleted.",
+	"cmd_mapManage_end": "map manage is end,maps will not be uploaded and deleted."
 },
   "error" : {
 	"admin_unremoved" : "[%s] not found!",
@@ -82,6 +84,7 @@
 	"cmd_permission_denied" : "[red]cmd :%s , Permission denied!",
 	"cmd_invalid_user" : "[red]Proc cmd :%s invalid!",
 	"cmd_host_fix_mode" : "[red]Server is locked to the mode[%s]. If you want to play in other modes, please contact Super Administrator.",
-	"login_forbbidden_username" : "[red]'Server' forbidden use!"
+	"login_forbbidden_username" : "[red]'Server' forbidden use!",
+	"cmd_mapManage_started": "[red]mapManage is in progress, please wait!"
 }
 }

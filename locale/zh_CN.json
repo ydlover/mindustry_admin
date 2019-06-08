@@ -32,9 +32,9 @@
 	"gameover" : "%s  - 结束当前游戏",
 	"info" : "%s <IP/UUID/name...> - 查找玩家信息. 可通过玩家名查找，也可通过IP查找",
 	"slots" : "%s 显示所有可用的存档",
-	"admins" : "%s 查看管理员清单",
 	"mode" : "%s <mode> 查看或者当前服务器设置的固定模式,固定模式被设置时执行host或hostx命令时不允许指定模式,mode可以设置为:pvp,attack,sandbox,survival,none",
-	"votetick" : "%s <cmd> - 发起投票来执行命令（普通玩家的福利），投票时间为1分钟，同意者在聊天框打1，反之打0，半数玩家同意即可执行，管理员有一票否决权"
+	"votetick" : "%s <cmd> - 发起投票来执行命令（普通玩家的福利），投票时间为1分钟，同意者在聊天框打1，反之打0，半数玩家同意即可执行，管理员有一票否决权",
+	"mapManage" : "%s - 地图管理开始(600秒),地图将可以上传和删除"
   },
   "info" : {
 	"auto_save" : "自动保存成功，存档号为[%d]",
@@ -59,7 +59,9 @@
 	"cpu_temperature":"CPU温度: %.3f°C",
 	"votetick_pass":"投票通过,全部人员:%d,同意者:%d",
 	"votetick_fail":"投票未过(同意比例低于50%%),全部人员:%d,同意者:%d,管理员否决:%d",
-	"mode_show":"当前服务器设置的固定模式是[%s],如果未设置模式则执行host或hostx时可以指定模式，否则不能"
+	"mode_show":"当前服务器设置的固定模式是[%s],如果未设置模式则执行host或hostx时可以指定模式，否则不能",
+	"cmd_mapManage_start": "地图管理开始(600秒),地图将可以上传和删除",
+	"cmd_mapManage_end": "地图管理结束，地图将不能被上传和删除"
 },
   "error" : {
 	"admin_unremoved" : " [%s]没找到,移除管理员权限",
@@ -82,6 +84,7 @@
 	"cmd_permission_denied" : "没有权限执行命令:%s!",
 	"cmd_invalid_user" : "执行命令无效:%s!",
 	"cmd_host_fix_mode" : "服务器工作在固定模式[%s]，如果你想游玩其它模式，请联系超级管理员",
-	"login_forbbidden_username" : "'Server'这个用户名被禁止使用!"
+	"login_forbbidden_username" : "'Server'这个用户名被禁止使用!",
+	"cmd_mapManage_started": "地图管理流程进行中，不能再次执行该命令!"
 }
 }
