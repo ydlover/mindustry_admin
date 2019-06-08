@@ -73,7 +73,7 @@ type Mindustry struct {
 	adminCfg           *AdminCfg
 	jarPath            string
 	users              map[string]User
-	votetickUsers      map[string]int
+	votekickUsers      map[string]int
 	serverOutR         *regexp.Regexp
 	cfgAdminCmds       string
 	cfgSuperAdminCmds  string
@@ -286,18 +286,18 @@ func (this *Mindustry) loadConfig() {
 					this.cmds[cmd] = Cmd{cmd, 0, false}
 				}
 			}
-			optionValue, err = cfg.String("server", "votetickCmds")
+			optionValue, err = cfg.String("server", "votekickCmds")
 			if err == nil {
 				optionValue := strings.TrimSpace(optionValue)
 				cmds := strings.Split(optionValue, ",")
-				log.Printf("[ini]found votetickCmds:%v\n", cmds)
+				log.Printf("[ini]found votekickCmds:%v\n", cmds)
 				this.cfgVoteCmds = optionValue
 				for _, cmd := range cmds {
 					if c, ok := this.cmds[cmd]; ok {
 						c.isVote = true
 						this.cmds[cmd] = c
 					} else {
-						log.Printf("[ini]votetick not found cmd:%s\n", cmd)
+						log.Printf("[ini]votekick not found cmd:%s\n", cmd)
 					}
 				}
 			}
@@ -345,7 +345,7 @@ func (this *Mindustry) loadConfig() {
 func (this *Mindustry) init() {
 	this.serverOutR, _ = regexp.Compile(".*(\\[INFO\\]|\\[ERR\\])(.*)")
 	this.users = make(map[string]User)
-	this.votetickUsers = make(map[string]int)
+	this.votekickUsers = make(map[string]int)
 	this.cmds = make(map[string]Cmd)
 	this.cmdHelps = make(map[string]string)
 	this.userCmdProcHandles = make(map[string]UserCmdProcHandle)
@@ -371,7 +371,7 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["slots"] = this.proc_slots
 	this.userCmdProcHandles["admins"] = this.proc_admins
 	this.userCmdProcHandles["show"] = this.proc_show
-	this.userCmdProcHandles["votetick"] = this.proc_votetick
+	this.userCmdProcHandles["votekick"] = this.proc_votekick
 	this.userCmdProcHandles["mode"] = this.proc_mode
 
 }
@@ -856,7 +856,7 @@ func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput s
 		} else {
 			this.say(in, "info.user_cmd", this.cfgNormCmds)
 		}
-		this.say(in, "info.votetick_cmd", this.cfgVoteCmds)
+		this.say(in, "info.votekick_cmd", this.cfgVoteCmds)
 
 	}
 	return true
@@ -914,7 +914,7 @@ func (this *Mindustry) checkVote() (bool, int, int) {
 	}
 	agreeCnt := 0
 	adminAgainstCnt := 0
-	for userName, isAgree := range this.votetickUsers {
+	for userName, isAgree := range this.votekickUsers {
 		if isAgree == 1 {
 			agreeCnt++
 		} else if _, ok := this.users[userName]; ok {
@@ -929,35 +929,35 @@ func (this *Mindustry) checkVote() (bool, int, int) {
 
 	return float32(agreeCnt)/float32(this.playCnt) >= 0.5, agreeCnt, adminAgainstCnt
 }
-func (this *Mindustry) proc_votetick(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_votekick(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
 	index := strings.Index(userInput, " ")
 	if index < 0 {
-		this.say(in, "error.cmd_votetick_target_invalid", userInput)
+		this.say(in, "error.cmd_votekick_target_invalid", userInput)
 		return false
 	}
 
-	if len(this.votetickUsers) > 0 {
-		this.say(in, "error.cmd_votetick_in_progress")
+	if len(this.votekickUsers) > 0 {
+		this.say(in, "error.cmd_votekick_in_progress")
 		return false
 	}
-	votetickCmd := strings.TrimSpace(userInput[index:])
-	votetickCmdHead := votetickCmd
-	index = strings.Index(votetickCmd, " ")
+	votekickCmd := strings.TrimSpace(userInput[index:])
+	votekickCmdHead := votekickCmd
+	index = strings.Index(votekickCmd, " ")
 	if index >= 0 {
-		votetickCmdHead = strings.TrimSpace(votetickCmd[:index])
+		votekickCmdHead = strings.TrimSpace(votekickCmd[:index])
 	}
 
-	if cmd, ok := this.cmds[votetickCmdHead]; ok {
+	if cmd, ok := this.cmds[votekickCmdHead]; ok {
 		if !cmd.isVote {
-			this.say(in, "error.cmd_votetick_not_permit", votetickCmdHead)
+			this.say(in, "error.cmd_votekick_not_permit", votekickCmdHead)
 			return false
 		}
 	} else {
-		this.say(in, "error.cmd_votetick_cmd_error", votetickCmdHead)
+		this.say(in, "error.cmd_votekick_cmd_error", votekickCmdHead)
 		return false
 	}
-	if handleFunc, ok := this.userCmdProcHandles[votetickCmdHead]; ok {
-		checkRslt := handleFunc(in, userName, votetickCmd, true)
+	if handleFunc, ok := this.userCmdProcHandles[votekickCmdHead]; ok {
+		checkRslt := handleFunc(in, userName, votekickCmd, true)
 		if !checkRslt {
 			return false
 		}
@@ -966,28 +966,28 @@ func (this *Mindustry) proc_votetick(in io.WriteCloser, userName string, userInp
 			return true
 		}
 
-		this.currProcCmd = "votetick"
-		this.votetickUsers = make(map[string]int)
-		this.votetickUsers[userName] = 1
+		this.currProcCmd = "votekick"
+		this.votekickUsers = make(map[string]int)
+		this.votekickUsers[userName] = 1
 		go func() {
 			timer := time.NewTimer(time.Duration(60) * time.Second)
 			<-timer.C
 			isSucc, agreeCnt, adminAgainstCnt := this.checkVote()
 			if isSucc {
-				this.say(in, "info.votetick_pass", this.playCnt, agreeCnt)
-				handleFunc(in, userName, votetickCmd, false)
+				this.say(in, "info.votekick_pass", this.playCnt, agreeCnt)
+				handleFunc(in, userName, votekickCmd, false)
 			} else {
-				this.say(in, "info.votetick_fail", this.playCnt, agreeCnt, adminAgainstCnt)
+				this.say(in, "info.votekick_fail", this.playCnt, agreeCnt, adminAgainstCnt)
 			}
-			this.votetickUsers = make(map[string]int)
+			this.votekickUsers = make(map[string]int)
 			this.currProcCmd = ""
 		}()
 
 	} else {
-		this.say(in, "error.cmd_votetick_cmd_not_support", votetickCmd)
+		this.say(in, "error.cmd_votekick_cmd_not_support", votekickCmd)
 		return false
 	}
-	this.say(in, "info.votetick_begin_info")
+	this.say(in, "info.votekick_begin_info")
 	return true
 }
 func checkMode(inputMode string) bool {
@@ -1141,13 +1141,13 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 			sayBody := strings.TrimSpace(cmdBody[index+1:])
 			if strings.HasPrefix(sayBody, "\\") || strings.HasPrefix(sayBody, "/") || strings.HasPrefix(sayBody, "!") {
 				this.procUsrCmd(in, userName, sayBody[1:])
-			} else if len(this.votetickUsers) > 0 {
+			} else if len(this.votekickUsers) > 0 {
 				if sayBody == "1" {
-					log.Printf("%s votetick agree\n", userName)
-					this.votetickUsers[userName] = 1
+					log.Printf("%s votekick agree\n", userName)
+					this.votekickUsers[userName] = 1
 				} else if sayBody == "0" {
-					log.Printf("%s votetick not agree\n", userName)
-					this.votetickUsers[userName] = 0
+					log.Printf("%s votekick not agree\n", userName)
+					this.votekickUsers[userName] = 0
 				}
 			} else {
 				//fmt.Printf("%s : %s\n", userName, sayBody)
