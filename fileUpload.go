@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -32,18 +33,17 @@ func init() {
 
 var m_mindustryServer *Mindustry
 
-func StartFileUpServer(port int, mindustryServer *Mindustry) {
+func StartFileUpServer(mindustryServer *Mindustry) {
 	mux := http.NewServeMux()
 	fs := http.FileServer(http.Dir("map_manager"))
 	mux.Handle("/", fs)
 	mh := http.HandlerFunc(handleRequest)
 	mux.Handle("/files/", mh)
 	server := &http.Server{
-		Addr:    "0.0.0.0:" + strconv.Itoa(port),
+		Addr:    "0.0.0.0:" + strconv.Itoa(mindustryServer.mapMangePort),
 		Handler: mux,
 	}
-
-	fmt.Println("file up server listening on: http://0.0.0.0:" + strconv.Itoa(port))
+	fmt.Println("file up server listening on: http://0.0.0.0:" + strconv.Itoa(mindustryServer.mapMangePort))
 	go func() {
 		c := make(chan os.Signal)
 		signal.Notify(c, os.Interrupt, os.Kill)
@@ -54,7 +54,10 @@ func StartFileUpServer(port int, mindustryServer *Mindustry) {
 	m_mindustryServer = mindustryServer
 	server.ListenAndServe()
 }
-
+func getDirFilesCnt() int {
+	files, _ := ioutil.ReadDir(FILE_PATH)
+	return len(files)
+}
 func handleRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch r.Method {
@@ -65,6 +68,13 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("map up is not permit!\n")
 			w.WriteHeader(403)
 			w.Write([]byte("not_permit"))
+			return
+		}
+		fileCnt := getDirFilesCnt()
+		if fileCnt > m_mindustryServer.maxMapCount {
+			fmt.Printf("fileCnt(%d) > maxMapCount(%d)!\n", fileCnt, m_mindustryServer.maxMapCount)
+			w.WriteHeader(403)
+			w.Write([]byte("not_cap"))
 			return
 		}
 		err = handlePost(w, r)

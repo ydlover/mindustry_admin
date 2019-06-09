@@ -97,7 +97,6 @@ type Mindustry struct {
 	remoteBanCfg           *BanCfg
 	m_isPermitMapModify    bool
 	isShowDefaultMapInMaps bool
-	mindustryPort          int
 	mapMangePort           int
 	maxMapCount            int
 }
@@ -342,10 +341,42 @@ func (this *Mindustry) loadConfig() {
 			if err == nil {
 				banCfg := strings.TrimSpace(optionValue)
 				this.banCfg = banCfg
+				log.Printf("[ini]banCfg:%s\n", this.banCfg)
 			}
 			optionValue, err = cfg.String("server", "isShowDefaultMapInMaps")
 			if err == nil {
 				this.isShowDefaultMapInMaps = strings.TrimSpace(optionValue) == "1"
+				log.Printf("[ini]isShowDefaultMapInMaps:%d\n", this.isShowDefaultMapInMaps)
+			}
+
+			optionIntValue, errInt := cfg.Int("server", "mindustryPort")
+			if errInt == nil {
+				this.port = optionIntValue
+				log.Printf("[ini]port:%d\n", this.port)
+			}
+
+			optionIntValue, err = cfg.Int("server", "mapMangePort")
+			if err == nil {
+				this.mapMangePort = optionIntValue
+				log.Printf("[ini]mapMangePort:%d\n", this.mapMangePort)
+			}
+
+			optionIntValue, err = cfg.Int("server", "maxMapCount")
+			if err == nil {
+				this.maxMapCount = optionIntValue
+				log.Printf("[ini]maxMapCount:%d\n", this.maxMapCount)
+			}
+
+			optionValue, err = cfg.String("server", "mode")
+			if err == nil {
+				if optionValue != "none" && optionValue != "" && checkMode(optionValue) {
+					if checkMode(optionValue) {
+						this.mode = optionValue
+						log.Printf("[ini]fix mode:%s\n", this.mode)
+					} else {
+						log.Printf("[ini]invalid mode:%s\n", optionValue)
+					}
+				}
 			}
 
 		}
@@ -365,6 +396,9 @@ func (this *Mindustry) init() {
 	this.serverIsStart = true
 	this.adminCfg = new(AdminCfg)
 	this.remoteBanCfg = new(BanCfg)
+	this.port = 6567
+	this.mapMangePort = 6569
+	this.maxMapCount = 15
 	this.loadConfig()
 	this.loadAdminConfig()
 	this.userCmdProcHandles["admin"] = this.proc_admin
@@ -1076,11 +1110,9 @@ func (this *Mindustry) multiLineRsltCmdComplete(in io.WriteCloser, line string) 
 	index := -1
 	if this.currProcCmd == "maps" {
 		if strings.Index(line, "Map directory:") >= 0 {
-			mapsInfo := ""
+			mapsInfo := "MAX([red]" + strconv.Itoa(this.maxMapCount) + ")[]"
 			for index, name := range this.maps {
-				if mapsInfo != "maps:" {
-					mapsInfo += " "
-				}
+				mapsInfo += " "
 				mapsInfo += ("[cyan](" + strconv.Itoa(index) + ")[white]" + name)
 			}
 			this.say(in, "info.maps_list", mapsInfo)
@@ -1254,22 +1286,27 @@ func (this *Mindustry) isPermitMapModify() bool {
 	return this.m_isPermitMapModify
 }
 
-func (this *Mindustry) startMapUpServer(port int) {
-	go func(serverPort int) {
-		StartFileUpServer(serverPort, this)
-	}(port)
+func (this *Mindustry) startMapUpServer() {
+	go func() {
+		StartFileUpServer(this)
+	}()
 }
 func main() {
 	mode := flag.String("mode", "", "fix mode:survival,attack,sandbox,pvp")
-	port := flag.Int("port", 6567, "Input port")
-	map_port := flag.Int("up", 6569, "map up port")
+	port := flag.Int("port", 0, "Input port")
+	map_port := flag.Int("up", 0, "map up port")
 	flag.Parse()
 	log.Printf("version:%s!\n", _VERSION_)
 
 	mindustry := Mindustry{}
 	mindustry.init()
+	if *port != 0 {
+		mindustry.port = *port
+	}
+	if *map_port != 0 {
+		mindustry.mapMangePort = *map_port
+	}
 	mindustry.mode = *mode
-	mindustry.port = *port
-	mindustry.startMapUpServer(*map_port)
+	mindustry.startMapUpServer()
 	mindustry.run()
 }

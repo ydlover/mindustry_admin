@@ -27,4 +27,4 @@ STRINGS.SELECT_BUTTON_LABLE = '选择文件(select file)';
 STRINGS.WIFI_AVAILABLE = 'WiFi连接已启用(wifi avaliable)';
 STRINGS.EXCEEDS_FILE_SIZE =  '无法上传文件，请勿上传大于1024KB的文件(Upload fail, Do not upload files larger than 1024KB)';
 STRINGS.UNSUPPORTED_BROWSER_TYPE = '请使用Chrome、Firefox或Safari浏览器(Use Chrome, Firefox or Safari browsers)';
-STRINGS.NOT_PERMIT = '你没有上传或者删除的权限,操作前请先联系管理员！\nYou do not have permission to upload or delete, please contact the administrator before you operate.';
+STRINGS.NOT_PERMIT = '地图已经达到最大规格或者你没有上传或者删除的权限,操作前请先联系管理员！\nMap has reached the maximum specification or you do not have the right to upload or delete, please contact the administrator before operation.';
