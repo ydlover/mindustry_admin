@@ -69,33 +69,34 @@ type Cmd struct {
 }
 
 type Mindustry struct {
-	name                string
-	adminCfg            *AdminCfg
-	jarPath             string
-	users               map[string]User
-	votetickUsers       map[string]int
-	serverOutR          *regexp.Regexp
-	cfgAdminCmds        string
-	cfgSuperAdminCmds   string
-	cfgNormCmds         string
-	cfgVoteCmds         string
-	cmds                map[string]Cmd
-	cmdHelps            map[string]string
-	port                int
-	mode                string
-	cmdFailReason       string
-	currProcCmd         string
-	notice              string //cron task auto notice msg
-	playCnt             int
-	serverIsStart       bool
-	serverIsRun         bool
-	maps                []string
-	userCmdProcHandles  map[string]UserCmdProcHandle
-	l                   *lingo.L
-	i18n                lingo.T
-	banCfg              string
-	remoteBanCfg        *BanCfg
-	m_isPermitMapModify bool
+	name                   string
+	adminCfg               *AdminCfg
+	jarPath                string
+	users                  map[string]User
+	votetickUsers          map[string]int
+	serverOutR             *regexp.Regexp
+	cfgAdminCmds           string
+	cfgSuperAdminCmds      string
+	cfgNormCmds            string
+	cfgVoteCmds            string
+	cmds                   map[string]Cmd
+	cmdHelps               map[string]string
+	port                   int
+	mode                   string
+	cmdFailReason          string
+	currProcCmd            string
+	notice                 string //cron task auto notice msg
+	playCnt                int
+	serverIsStart          bool
+	serverIsRun            bool
+	maps                   []string
+	userCmdProcHandles     map[string]UserCmdProcHandle
+	l                      *lingo.L
+	i18n                   lingo.T
+	banCfg                 string
+	remoteBanCfg           *BanCfg
+	m_isPermitMapModify    bool
+	isShowDefaultMapInMaps bool
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -339,6 +340,11 @@ func (this *Mindustry) loadConfig() {
 				banCfg := strings.TrimSpace(optionValue)
 				this.banCfg = banCfg
 			}
+			optionValue, err = cfg.String("server", "isShowDefaultMapInMaps")
+			if err == nil {
+				this.isShowDefaultMapInMaps = strings.TrimSpace(optionValue) == "1"
+			}
+
 		}
 	}
 
@@ -1082,9 +1088,11 @@ func (this *Mindustry) multiLineRsltCmdComplete(in io.WriteCloser, line string) 
 		if index >= 0 {
 			mapNameEndIndex = index
 		}
-		index = strings.Index(line, ": Default /")
-		if index >= 0 {
-			mapNameEndIndex = index
+		if this.isShowDefaultMapInMaps {
+			index = strings.Index(line, ": Default /")
+			if index >= 0 {
+				mapNameEndIndex = index
+			}
 		}
 		if mapNameEndIndex >= 0 {
 			this.maps = append(this.maps, strings.TrimSpace(line[:mapNameEndIndex]))
