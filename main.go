@@ -97,6 +97,9 @@ type Mindustry struct {
 	remoteBanCfg           *BanCfg
 	m_isPermitMapModify    bool
 	isShowDefaultMapInMaps bool
+	mindustryPort          int
+	mapMangePort           int
+	maxMapCount            int
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
