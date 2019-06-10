@@ -34,7 +34,7 @@
 	"slots" : "%s [sky]Display all available save slots",
 	"admins" : "%s [sky]Display all[] [cyan]Admins[]",
     	"mode": "%s [mode] [sky]view or fixed mode set by the current server, fixed mode set when executing host or hostx commands are not allowed to specify mode, Modes: pvp, attack, sandbox, survival, none",
-	"votetick" : "%s <cmd> - [sky]Votetick(60 second), vote by sending 1 or 0 (Yes:1, No:0)"
+	"vote" : "%s <cmd> - [sky]Votetick(60 second), vote by sending 1 or 0 (Yes:1, No:0)"
   },
   "info" : {
 	"auto_save" : "Автосохранение %d",

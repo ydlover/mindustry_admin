@@ -346,7 +346,7 @@ func (this *Mindustry) loadConfig() {
 			optionValue, err = cfg.String("server", "isShowDefaultMapInMaps")
 			if err == nil {
 				this.isShowDefaultMapInMaps = strings.TrimSpace(optionValue) == "1"
-				log.Printf("[ini]isShowDefaultMapInMaps:%d\n", this.isShowDefaultMapInMaps)
+				log.Printf("[ini]isShowDefaultMapInMaps:%t\n", this.isShowDefaultMapInMaps)
 			}
 
 			optionIntValue, errInt := cfg.Int("server", "mindustryPort")
@@ -415,7 +415,7 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["slots"] = this.proc_slots
 	this.userCmdProcHandles["admins"] = this.proc_admins
 	this.userCmdProcHandles["show"] = this.proc_show
-	this.userCmdProcHandles["votetick"] = this.proc_votetick
+	this.userCmdProcHandles["vote"] = this.proc_votetick
 	this.userCmdProcHandles["mode"] = this.proc_mode
 	this.userCmdProcHandles["mapManage"] = this.proc_mapManage
 
@@ -430,7 +430,7 @@ func removeColorCode(str string) string {
 
 func (this *Mindustry) execCommand(commandName string, params []string) error {
 	cmd := exec.Command(commandName, params...)
-	fmt.Println(cmd.Args)
+	log.Println(cmd.Args)
 	stdout, outErr := cmd.StdoutPipe()
 	stdin, inErr := cmd.StdinPipe()
 	if outErr != nil {
@@ -912,7 +912,7 @@ var tempOsPath = "/sys/class/thermal/thermal_zone0/temp"
 func getCpuTemp() float64 {
 	raw, err := ioutil.ReadFile(tempOsPath)
 	if err != nil {
-		log.Printf("Failed to read temperature from %q: %v", tempOsPath, err)
+		//log.Printf("Failed to read temperature from %q: %v", tempOsPath, err)
 		return 0.0
 	}
 
@@ -1001,37 +1001,35 @@ func (this *Mindustry) proc_votetick(in io.WriteCloser, userName string, userInp
 		this.say(in, "error.cmd_votetick_cmd_error", votetickCmdHead)
 		return false
 	}
-	if handleFunc, ok := this.userCmdProcHandles[votetickCmdHead]; ok {
-		checkRslt := handleFunc(in, userName, votetickCmd, true)
-		if !checkRslt {
-			return false
-		}
-
-		if isOnlyCheck {
-			return true
-		}
-
-		this.currProcCmd = "votetick"
-		this.votetickUsers = make(map[string]int)
-		this.votetickUsers[userName] = 1
-		go func() {
-			timer := time.NewTimer(time.Duration(60) * time.Second)
-			<-timer.C
-			isSucc, agreeCnt, adminAgainstCnt := this.checkVote()
-			if isSucc {
-				this.say(in, "info.votetick_pass", this.playCnt, agreeCnt)
-				handleFunc(in, userName, votetickCmd, false)
-			} else {
-				this.say(in, "info.votetick_fail", this.playCnt, agreeCnt, adminAgainstCnt)
-			}
-			this.votetickUsers = make(map[string]int)
-			this.currProcCmd = ""
-		}()
-
-	} else {
-		this.say(in, "error.cmd_votetick_cmd_not_support", votetickCmd)
+	handleFunc := this.proc_directCmd
+	if tempHandleFunc, ok := this.userCmdProcHandles[votetickCmdHead]; ok {
+		handleFunc = tempHandleFunc
+	}
+	checkRslt := handleFunc(in, userName, votetickCmd, true)
+	if !checkRslt {
 		return false
 	}
+	if isOnlyCheck {
+		return true
+	}
+
+	this.currProcCmd = "votetick"
+	this.votetickUsers = make(map[string]int)
+	this.votetickUsers[userName] = 1
+	go func() {
+		timer := time.NewTimer(time.Duration(60) * time.Second)
+		<-timer.C
+		isSucc, agreeCnt, adminAgainstCnt := this.checkVote()
+		if isSucc {
+			this.say(in, "info.votetick_pass", this.playCnt, agreeCnt)
+			handleFunc(in, userName, votetickCmd, false)
+		} else {
+			this.say(in, "info.votetick_fail", this.playCnt, agreeCnt, adminAgainstCnt)
+		}
+		this.votetickUsers = make(map[string]int)
+		this.currProcCmd = ""
+	}()
+
 	this.say(in, "info.votetick_begin_info")
 	return true
 }
@@ -1110,7 +1108,7 @@ func (this *Mindustry) multiLineRsltCmdComplete(in io.WriteCloser, line string) 
 	index := -1
 	if this.currProcCmd == "maps" {
 		if strings.Index(line, "Map directory:") >= 0 {
-			mapsInfo := "MAX([red]" + strconv.Itoa(this.maxMapCount) + ")[]"
+			mapsInfo := "MAX([red]" + strconv.Itoa(this.maxMapCount) + "[])"
 			for index, name := range this.maps {
 				mapsInfo += " "
 				mapsInfo += ("[cyan](" + strconv.Itoa(index) + ")[white]" + name)
@@ -1296,6 +1294,13 @@ func main() {
 	port := flag.Int("port", 0, "Input port")
 	map_port := flag.Int("up", 0, "map up port")
 	flag.Parse()
+	outfile, err := os.OpenFile("./logs/admin.log", os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
+	if err != nil {
+		fmt.Println("open log file failed")
+	} else {
+		w := io.MultiWriter(os.Stdout, outfile)
+		log.SetOutput(w)
+	}
 	log.Printf("version:%s!\n", _VERSION_)
 
 	mindustry := Mindustry{}
