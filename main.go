@@ -99,6 +99,7 @@ type Mindustry struct {
 	isShowDefaultMapInMaps bool
 	mapMangePort           int
 	maxMapCount            int
+	c                      *cron.Cron
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -383,17 +384,23 @@ func (this *Mindustry) loadConfig() {
 	}
 
 }
-func (this *Mindustry) init() {
-	this.serverOutR, _ = regexp.Compile(".*(\\[INFO\\]|\\[ERR\\])(.*)")
+func (this *Mindustry) initStatus() {
+	this.serverIsStart = true
+	this.serverIsRun = false
+	this.playCnt = 0
+	this.m_isPermitMapModify = false
 	this.users = make(map[string]User)
 	this.votetickUsers = make(map[string]int)
+}
+func (this *Mindustry) init() {
+	this.serverOutR, _ = regexp.Compile(".*(\\[INFO\\]|\\[ERR\\])(.*)")
 	this.cmds = make(map[string]Cmd)
 	this.cmdHelps = make(map[string]string)
 	this.userCmdProcHandles = make(map[string]UserCmdProcHandle)
 	rand.Seed(time.Now().UnixNano())
 	this.name = fmt.Sprintf("mindustry-%d", rand.Int())
 	this.jarPath = "server-release.jar"
-	this.serverIsStart = true
+	this.c = cron.New()
 	this.adminCfg = new(AdminCfg)
 	this.remoteBanCfg = new(BanCfg)
 	this.port = 6567
@@ -418,7 +425,7 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["vote"] = this.proc_votetick
 	this.userCmdProcHandles["mode"] = this.proc_mode
 	this.userCmdProcHandles["mapManage"] = this.proc_mapManage
-
+	this.initStatus()
 }
 
 var colorCodeReg = regexp.MustCompile(`\[.*?\]|#[0-9a-fA-F]+`)
@@ -441,6 +448,7 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 		return inErr
 	}
 	cmd.Start()
+	this.initStatus()
 	go func(cmd *exec.Cmd) {
 		c := make(chan os.Signal)
 		signal.Notify(c, os.Interrupt, os.Kill)
@@ -450,16 +458,16 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 			cmd.Process.Kill()
 		}
 	}(cmd)
-	c := cron.New()
+	this.c.Stop()
 	spec := "0 0 * * * ?"
-	c.AddFunc(spec, func() {
+	this.c.AddFunc(spec, func() {
 		this.hourTask(stdin)
 	})
 	spec = "0 5/10 * * * ?"
-	c.AddFunc(spec, func() {
+	this.c.AddFunc(spec, func() {
 		this.tenMinTask(stdin)
 	})
-	c.Start()
+	this.c.Start()
 	go func(cmd *exec.Cmd) {
 		reader := bufio.NewReader(os.Stdin)
 		for {
