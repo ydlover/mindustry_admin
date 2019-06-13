@@ -3,12 +3,12 @@
 
 支持如下功能
 ===========
-* 1)游戏中通过聊天窗口发送命令，例如/gameover
-* 2)基本权限控制，只有admin或者super admin才有命令执行权限
-* 3)地图管理器，管理员可以通过web页面更换地图 
-* 4)整点(每小时)自动备份功能 
-* 5)投票功能，例如普通玩家可以通过/votetick hostx 1发起更换地图的投票
-* 6)网络ban功能（默认不启用)，请通过修改config.ini中相应配置启用
+* 1)游戏中通过聊天窗口发送命令，例如/gameover  
+* 2)基本权限控制，只有admin或者super admin才有命令执行权限  
+* 3)地图管理器，管理员可以通过web页面更换地图   
+* 4)整点(每小时)自动备份功能   
+* 5)投票功能，例如普通玩家可以通过/votetick hostx 1发起更换地图的投票  
+* 6)网络ban功能（默认不启用)，请通过修改config.ini中相应配置启用  
 
 使用方法
 =========
@@ -21,8 +21,8 @@
 2. 游戏运行中禁止手动修改admin.json,请先在控制台执行exit命令退出管理程序后再修改该文件
 
 ## 4)修改config.ini中相关配置
-    mindustryPort mindustry启动端口，默认6567
-    mapMangePort  地图管理端口，默认6569
+    mindustryPort mindustry启动端口，默认6567  
+    mapMangePort  地图管理端口，默认6569  
 ## 5)启动对应操作系统的执行程序，例如 mindustry_admin_linux_386
 
 
@@ -58,15 +58,15 @@ Installation
 Chat room command help
 ===================================
  * 1)/maps 
- to view the currently available map, the number in front of the map is ID
-* 2)/hostx[mode] 
- Uses ID to change maps. When changing maps, the server will automatically restart.
+ to view the currently available map, the number in front of the map is ID  
+* 2)/hostx [id] <mode> 
+ Uses ID to change maps. When changing maps, the server will automatically restart.  
 * 3) /save [slot] 
- When slot is not input, it is automatically saved as the corresponding number of the current day time/10. Note that it is better not to have any enemy that have not been eradicated when saving, otherwise these monsters may be refreshed to any place on the map when loading archives.
+ When slot is not input, it is automatically saved as the corresponding number of the current day time/10. Note that it is better not to have any enemy that have not been eradicated when saving, otherwise these monsters may be refreshed to any place on the map when loading archives.  
 * 4)/Load slot 
- Command checks whether the slot is illegal before execution, and automatically restarts the server when loading
- 5)/slots 
- View the available archives on the current server. Note that if the archive version does not match, the map does not exist and other reasons may fail to load, the failure of loading needs to be handled manually.
-* 6)/ShowAdmin
-  View the server administrator list, default ordinary user execute
-* 7)/vote [cmd] norm user vote in 60s
+ Command checks whether the slot is illegal before execution, and automatically restarts the server when loading  
+ 5)/slots   
+ View the available archives on the current server. Note that if the archive version does not match, the map does not exist and other reasons may fail to load, the failure of loading needs to be handled manually.  
+* 6)/admins  
+  View the server administrator list, default ordinary user execute  
+* 7)/vote [cmd] norm user vote in 60s  
