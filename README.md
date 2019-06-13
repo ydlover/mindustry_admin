@@ -9,12 +9,18 @@
 
 使用方法
 =========
-* 1)将发布的zip解压到硬盘任意地方
-* 2)将官方发布的server-release.jar也移动到该目录中
-* 3)增加或修改admin.json文件中服务器的超级管理员名单(只需要配置name,id不用配置，用户第一次登录游戏时会自动记录)，当服务器启动时会将这些用户加载到系统中
-* 4)启动对应操作系统的执行程序，例如 mindustry_admin_linux_386 -port 6567 -up 6569
-* 5)启动参数说明:-port 服务器端口，默认6567，如果不需要修改可以不用输入
-* 6)启动参数说明:-up 地图管理端口，默认6569，如果不需要修改可以不用输入
+## 1)将发布的zip解压到硬盘任意地方
+## 2)将官方发布的server-release.jar也移动到该目录中
+## 3)增加或修改admin.json文件中服务器的超级管理员名单(只需要配置name,id不用配置，用户第一次登录游戏时会自动记录)，当服务器启动时会将这些用户加载到系统中  
+注意：  
+1. 只需要配置name,不需要配置id，id将在该玩家登录时自动绑定  
+2. 普通管理员建议不要修改admin.json来配置，因为修改不正确会导致所有管理员配置都不生效，请超级管理员在游戏中通过/admin xxx来配置  
+2. 游戏运行中禁止手动修改admin.json,请先在控制台执行exit命令退出管理程序后再修改该文件
+
+## 4)修改config.ini中相关配置
+    mindustryPort mindustry启动端口，默认6567
+    mapMangePort  地图管理端口，默认6569
+## 5)启动对应操作系统的执行程序，例如 mindustry_admin_linux_386
 
 
 聊天室管理员命令帮助
@@ -35,12 +41,16 @@ Feture lists
  
 Installation
 ============
-* 1) Unzip the published zip anywhere on the hard disk
-* 2) Move the officially published server-release.jar to the directory
-* 3) Modify the list of server administrators and super administrators in config.ini file, and load these users into the system when the server starts.
-* 4) Start the execution program of the corresponding operating system, such as mindustry_admin_linux_386 -port 6567 -up 6569
-* 5) Startup parameter description: - Port server port, default 6567, if you do not need to modify you can not enter
-* 6) Startup parameter description: - up map management port, default 6569, if you do not need to modify you can not enter
+## 1) Unzip the published zip anywhere on the hard disk
+## 2) Move the officially published server-release.jar to the directory
+## 3) Modify config.ini
+     mindustryPort mindustry boot port, default 6567
+     mapMangePort map management port, default 6569
+## 4) Configure super administrator
+1. Only need to configure name, no need to configure id, id will be automatically bound when the player logs in.  
+2. Ordinary administrators do not recommend modifying admin.json to configure, because incorrect modification will cause all administrator configurations to take effect. Please super administrator to configure via /admin xxx in the game.  
+3. It is forbidden to manually modify admin.json during game running. Please execute the exit command in the console to exit the management program and then modify the file.  
+4. Start the execution program of the corresponding operating system, such as mindustry_admin_linux_386
  
 Chat room command help
 ===================================
