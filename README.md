@@ -1,3 +1,6 @@
+![效果展示](https://github.com/ydlover/mindustry_admin/blob/master/web/demo_hostx.jpg?raw=true)
+==========
+
 支持如下功能
 ===========
 * 1)游戏中通过聊天窗口发送命令，例如/gameover
