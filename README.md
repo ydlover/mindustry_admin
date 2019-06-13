@@ -65,7 +65,7 @@ Chat room command help
  When slot is not input, it is automatically saved as the corresponding number of the current day time/10. Note that it is better not to have any enemy that have not been eradicated when saving, otherwise these monsters may be refreshed to any place on the map when loading archives.  
 * 4)/Load slot 
  Command checks whether the slot is illegal before execution, and automatically restarts the server when loading  
- 5)/slots   
+* 5)/slots   
  View the available archives on the current server. Note that if the archive version does not match, the map does not exist and other reasons may fail to load, the failure of loading needs to be handled manually.  
 * 6)/admins  
   View the server administrator list, default ordinary user execute  
