@@ -34,7 +34,7 @@ func StripColor(str string) string {
 	return re.ReplaceAllString(str, "")
 }
 
-type UserCmdProcHandle func(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool
+type UserCmdProcHandle func(userName string, userInput string, isOnlyCheck bool) bool
 
 type Admin struct {
 	Name         string `json:"name"`
@@ -100,6 +100,7 @@ type Mindustry struct {
 	mapMangePort           int
 	maxMapCount            int
 	c                      *cron.Cron
+	cmdIn                  io.WriteCloser
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -133,7 +134,7 @@ func findInBan(banCfgList []Ban, id string) bool {
 	}
 	return false
 }
-func (this *Mindustry) netBan(in io.WriteCloser) {
+func (this *Mindustry) netBan() {
 	if this.banCfg == "" {
 		return
 	}
@@ -203,10 +204,10 @@ func (this *Mindustry) netBan(in io.WriteCloser) {
 			}
 		}
 		for _, id := range unbanList {
-			this.execCmd(in, "unban "+id)
+			this.execCmd("unban " + id)
 		}
 		for _, id := range banList {
-			this.execCmd(in, "ban id "+id)
+			this.execCmd("ban id " + id)
 		}
 		*this.remoteBanCfg = currRemoteBanCfg
 	} else {
@@ -426,6 +427,15 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["mode"] = this.proc_mode
 	this.userCmdProcHandles["mapManage"] = this.proc_mapManage
 	this.initStatus()
+	spec := "0 0 * * * ?"
+	this.c.AddFunc(spec, func() {
+		this.hourTask()
+	})
+	spec = "0 5/10 * * * ?"
+	this.c.AddFunc(spec, func() {
+		this.tenMinTask()
+	})
+	this.c.Start()
 }
 
 var colorCodeReg = regexp.MustCompile(`\[.*?\]|#[0-9a-fA-F]+`)
@@ -439,7 +449,8 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 	cmd := exec.Command(commandName, params...)
 	log.Println(cmd.Args)
 	stdout, outErr := cmd.StdoutPipe()
-	stdin, inErr := cmd.StdinPipe()
+	var inErr error
+	this.cmdIn, inErr = cmd.StdinPipe()
 	if outErr != nil {
 		return outErr
 	}
@@ -458,15 +469,6 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 			cmd.Process.Kill()
 		}
 	}(cmd)
-	this.c.Stop()
-	spec := "0 0 * * * ?"
-	this.c.AddFunc(spec, func() {
-		this.hourTask(stdin)
-	})
-	spec = "0 5/10 * * * ?"
-	this.c.AddFunc(spec, func() {
-		this.tenMinTask(stdin)
-	})
 	this.c.Start()
 	go func(cmd *exec.Cmd) {
 		reader := bufio.NewReader(os.Stdin)
@@ -484,7 +486,7 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 			if inputCmd == "host" || inputCmd == "load" {
 				this.serverIsStart = true
 			}
-			this.execCmd(stdin, inputCmd)
+			this.execCmd(inputCmd)
 		}
 	}(cmd)
 
@@ -496,24 +498,24 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 			break
 		}
 		fmt.Printf(line)
-		this.output(StripColor(line), stdin)
+		this.output(StripColor(line))
 	}
 	cmd.Wait()
 	return nil
 }
-func (this *Mindustry) hourTask(in io.WriteCloser) {
+func (this *Mindustry) hourTask() {
 	hour := time.Now().Hour()
 	log.Printf("hourTask trig:%d\n", hour)
 	if this.serverIsRun {
-		this.execCmd(in, "save "+strconv.Itoa(hour))
-		this.say(in, "info.auto_save", hour)
-		this.netBan(in)
+		this.execCmd("save " + strconv.Itoa(hour))
+		this.say("info.auto_save", hour)
+		this.netBan()
 	} else {
 		log.Printf("game is not running.\n")
 	}
 }
 
-func (this *Mindustry) tenMinTask(in io.WriteCloser) {
+func (this *Mindustry) tenMinTask() {
 	log.Printf("tenMinTask trig[%.3f°C].\n", getCpuTemp())
 
 	if !this.serverIsStart {
@@ -521,12 +523,12 @@ func (this *Mindustry) tenMinTask(in io.WriteCloser) {
 	}
 	if !this.serverIsRun {
 		log.Printf("game is not running,exit.\n")
-		this.execCmd(in, "exit")
+		this.execCmd("exit")
 	} else {
-		this.say(in, this.notice)
+		this.say(this.notice)
 		log.Printf("update game status.\n")
 		this.currProcCmd = "status"
-		this.execCmd(in, "status ")
+		this.execCmd("status ")
 	}
 }
 func (this *Mindustry) addUser(name string) {
@@ -662,18 +664,18 @@ func (this *Mindustry) delUser(name string) {
 	delete(this.users, name)
 	log.Printf("del user info :%s\n", name)
 }
-func (this *Mindustry) execCmd(in io.WriteCloser, cmd string) {
+func (this *Mindustry) execCmd(cmd string) {
 	if cmd == "stop" || cmd == "host" || cmd == "hostx" || cmd == "load" {
 		this.playCnt = 0
 	}
 	log.Printf("execCmd :%s\n", cmd)
 	data := []byte(cmd + "\n")
-	in.Write(data)
+	this.cmdIn.Write(data)
 }
-func (this *Mindustry) say(in io.WriteCloser, strKey string, v ...interface{}) {
+func (this *Mindustry) say(strKey string, v ...interface{}) {
 	localeStr := "say " + this.i18n.Value(strKey) + "\n"
 	info := fmt.Sprintf(localeStr, v...)
-	in.Write([]byte(info))
+	this.cmdIn.Write([]byte(info))
 }
 
 func checkSlotValid(slot string) bool {
@@ -698,42 +700,42 @@ func getSlotList() string {
 	}
 	return strings.Join(slotList, ",")
 }
-func (this *Mindustry) cmdWaitTimeout(in io.WriteCloser, userName string, userInput string, cmdName string) {
+func (this *Mindustry) cmdWaitTimeout(userName string, userInput string, cmdName string) {
 	go func() {
 		timer := time.NewTimer(time.Duration(5) * time.Second)
 		<-timer.C
 		if this.currProcCmd != "" {
-			this.say(in, "error.cmd_timeout", this.currProcCmd)
+			this.say("error.cmd_timeout", this.currProcCmd)
 			this.currProcCmd = ""
 		}
 	}()
 	this.currProcCmd = cmdName
 }
 
-func (this *Mindustry) proc_maps(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_maps(userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
-	this.cmdWaitTimeout(in, userName, userInput, "maps")
-	this.execCmd(in, "reloadmaps")
+	this.cmdWaitTimeout(userName, userInput, "maps")
+	this.execCmd("reloadmaps")
 	this.maps = this.maps[0:0]
-	this.execCmd(in, "maps")
+	this.execCmd("maps")
 	return true
 }
-func (this *Mindustry) proc_status(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_status(userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
-	this.cmdWaitTimeout(in, userName, userInput, "status")
-	this.execCmd(in, "status")
+	this.cmdWaitTimeout(userName, userInput, "status")
+	this.execCmd("status")
 
 	return true
 }
-func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_host(userName string, userInput string, isOnlyCheck bool) bool {
 	mapName := ""
 	temps := strings.Split(userInput, " ")
 	if len(temps) < 2 {
-		this.say(in, "error.cmd_length_invalid", userInput)
+		this.say("error.cmd_length_invalid", userInput)
 		return false
 	}
 	inputCmd := strings.TrimSpace(temps[0])
@@ -741,7 +743,7 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 	inputMode := ""
 	if this.mode != "" {
 		if len(temps) > 2 {
-			this.say(in, "error.cmd_host_fix_mode", this.mode)
+			this.say("error.cmd_host_fix_mode", this.mode)
 			return false
 		}
 		inputMode = this.mode
@@ -753,12 +755,12 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 		inputIndex := 0
 		var err error = nil
 		if inputIndex, err = strconv.Atoi(inputMap); err != nil {
-			this.say(in, "error.cmd_hostx_id_not_number", userInput)
+			this.say("error.cmd_hostx_id_not_number", userInput)
 			return false
 		}
 		if inputIndex < 0 || inputIndex >= len(this.maps) {
 
-			this.say(in, "error.cmd_hostx_id_not_found", userInput)
+			this.say("error.cmd_hostx_id_not_found", userInput)
 			return false
 		}
 		mapName = this.maps[inputIndex]
@@ -772,35 +774,35 @@ func (this *Mindustry) proc_host(in io.WriteCloser, userName string, userInput s
 			}
 		}
 		if !isFind {
-			this.say(in, "error.cmd_host_map_not_found", userInput)
+			this.say("error.cmd_host_map_not_found", userInput)
 			return false
 		}
 	} else {
-		this.say(in, "error.cmd_invalid", userInput)
+		this.say("error.cmd_invalid", userInput)
 		return false
 	}
 	if !checkMode(inputMode) {
-		this.say(in, "error.cmd_host_mode_invalid", userInput)
+		this.say("error.cmd_host_mode_invalid", userInput)
 		return false
 	}
 	if isOnlyCheck {
 		return true
 	}
-	this.say(in, "info.server_restart")
-	this.execCmd(in, "reloadmaps")
+	this.say("info.server_restart")
+	this.execCmd("reloadmaps")
 	time.Sleep(time.Duration(5) * time.Second)
-	this.execCmd(in, "stop")
+	this.execCmd("stop")
 	time.Sleep(time.Duration(5) * time.Second)
 	mapName = strings.Replace(mapName, " ", "_", -1)
 	if inputMode == "" {
-		this.execCmd(in, "host "+mapName)
+		this.execCmd("host " + mapName)
 	} else {
-		this.execCmd(in, "host "+mapName+" "+inputMode)
+		this.execCmd("host " + mapName + " " + inputMode)
 	}
 	return true
 }
 
-func (this *Mindustry) proc_save(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_save(userName string, userInput string, isOnlyCheck bool) bool {
 	targetSlot := ""
 	if userInput == "save" {
 		minute := time.Now().Minute()
@@ -810,39 +812,39 @@ func (this *Mindustry) proc_save(in io.WriteCloser, userName string, userInput s
 		targetSlot = strings.TrimSpace(targetSlot)
 	}
 	if _, ok := strconv.Atoi(targetSlot); ok != nil {
-		this.say(in, "error.cmd_save_slot_invalid", targetSlot)
+		this.say("error.cmd_save_slot_invalid", targetSlot)
 		return false
 	}
 	if isOnlyCheck {
 		return true
 	}
-	this.execCmd(in, "save "+targetSlot)
-	this.say(in, "info.save_slot_succ", targetSlot)
+	this.execCmd("save " + targetSlot)
+	this.say("info.save_slot_succ", targetSlot)
 	return true
 }
 
-func (this *Mindustry) proc_load(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_load(userName string, userInput string, isOnlyCheck bool) bool {
 	targetSlot := userInput[len("load"):]
 	targetSlot = strings.TrimSpace(targetSlot)
 	if !checkSlotValid(targetSlot) {
-		this.say(in, "error.cmd_load_slot_invalid", targetSlot)
+		this.say("error.cmd_load_slot_invalid", targetSlot)
 		return false
 	}
 	if isOnlyCheck {
 		return true
 	}
-	this.say(in, "info.server_restart")
+	this.say("info.server_restart")
 	time.Sleep(time.Duration(5) * time.Second)
-	this.execCmd(in, "stop")
+	this.execCmd("stop")
 	time.Sleep(time.Duration(5) * time.Second)
-	this.execCmd(in, userInput)
+	this.execCmd(userInput)
 	return true
 }
-func (this *Mindustry) proc_admin(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_admin(userName string, userInput string, isOnlyCheck bool) bool {
 	targetName := userInput[len("admin"):]
 	targetName = strings.TrimSpace(targetName)
 	if targetName == "" {
-		this.say(in, "error.cmd_admin_name_invalid")
+		this.say("error.cmd_admin_name_invalid")
 		return false
 	}
 	if isOnlyCheck {
@@ -851,65 +853,65 @@ func (this *Mindustry) proc_admin(in io.WriteCloser, userName string, userInput 
 	newAdmin := Admin{targetName, "", ""}
 	this.adminCfg.AdminList = append(this.adminCfg.AdminList, newAdmin)
 	this.writeAdminConfig()
-	this.say(in, "info.admin_added", targetName)
+	this.say("info.admin_added", targetName)
 
 	return true
 }
-func (this *Mindustry) proc_unadmin(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_unadmin(userName string, userInput string, isOnlyCheck bool) bool {
 	targetName := userInput[len("unadmin"):]
 	targetName = strings.TrimSpace(targetName)
 	if targetName == "" {
-		this.say(in, "error.cmd_admin_name_invalid")
+		this.say("error.cmd_admin_name_invalid")
 		return false
 	}
 	if isOnlyCheck {
 		return true
 	}
-	this.execCmd(in, "unadmin "+targetName)
+	this.execCmd("unadmin " + targetName)
 	for i, admin := range this.adminCfg.AdminList {
 		if admin.Name == targetName {
 			this.adminCfg.AdminList = append(this.adminCfg.AdminList[:i], this.adminCfg.AdminList[i+1:]...)
 			this.writeAdminConfig()
-			this.say(in, "info.admin_removed", targetName)
+			this.say("info.admin_removed", targetName)
 			return true
 		}
 	}
-	this.say(in, "error.admin_unremoved", targetName)
+	this.say("error.admin_unremoved", targetName)
 	return false
 }
 
-func (this *Mindustry) proc_directCmd(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_directCmd(userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
-	this.execCmd(in, userInput)
+	this.execCmd(userInput)
 	return true
 }
-func (this *Mindustry) proc_gameover(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_gameover(userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
-	this.execCmd(in, "reloadmaps")
-	this.execCmd(in, userInput)
+	this.execCmd("reloadmaps")
+	this.execCmd(userInput)
 	return true
 }
-func (this *Mindustry) proc_help(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_help(userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
 	temps := strings.Split(userInput, " ")
 	if len(temps) >= 2 {
 		cmd := strings.TrimSpace(temps[1])
-		this.say(in, "helps."+cmd, cmd)
+		this.say("helps."+cmd, cmd)
 	} else {
 		if this.users[userName].isSuperAdmin {
-			this.say(in, "info.super_admin_cmd", this.cfgSuperAdminCmds)
+			this.say("info.super_admin_cmd", this.cfgSuperAdminCmds)
 		} else if this.users[userName].isAdmin {
-			this.say(in, "info.admin_cmd", this.cfgAdminCmds)
+			this.say("info.admin_cmd", this.cfgAdminCmds)
 		} else {
-			this.say(in, "info.user_cmd", this.cfgNormCmds)
+			this.say("info.user_cmd", this.cfgNormCmds)
 		}
-		this.say(in, "info.votetick_cmd", this.cfgVoteCmds)
+		this.say("info.votetick_cmd", this.cfgVoteCmds)
 
 	}
 	return true
@@ -934,30 +936,30 @@ func getCpuTemp() float64 {
 	//debug.Printf("CPU temperature: %.3f°C", cpuTemp)
 	return cpuTemp
 }
-func (this *Mindustry) proc_show(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_show(userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
-	this.say(in, "info.ver", _VERSION_)
-	this.say(in, "info.cpu_temperature", getCpuTemp())
+	this.say("info.ver", _VERSION_)
+	this.say("info.cpu_temperature", getCpuTemp())
 	return true
 }
-func (this *Mindustry) proc_admins(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_admins(userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
 	isShowWarn := this.users[userName].isSuperAdmin
-	this.say(in, "info.super_admin_list", this.getAdminList(this.adminCfg.SuperAdminList, isShowWarn))
-	this.say(in, "info.admin_list", this.getAdminList(this.adminCfg.AdminList, isShowWarn))
+	this.say("info.super_admin_list", this.getAdminList(this.adminCfg.SuperAdminList, isShowWarn))
+	this.say("info.admin_list", this.getAdminList(this.adminCfg.AdminList, isShowWarn))
 	return true
 
 }
 
-func (this *Mindustry) proc_slots(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_slots(userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
-	this.say(in, "info.slots_list", getSlotList())
+	this.say("info.slots_list", getSlotList())
 	return true
 }
 func (this *Mindustry) checkVote() (bool, int, int) {
@@ -982,15 +984,15 @@ func (this *Mindustry) checkVote() (bool, int, int) {
 
 	return float32(agreeCnt)/float32(this.playCnt) >= 0.5, agreeCnt, adminAgainstCnt
 }
-func (this *Mindustry) proc_votetick(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_votetick(userName string, userInput string, isOnlyCheck bool) bool {
 	index := strings.Index(userInput, " ")
 	if index < 0 {
-		this.say(in, "error.cmd_votetick_target_invalid", userInput)
+		this.say("error.cmd_votetick_target_invalid", userInput)
 		return false
 	}
 
 	if len(this.votetickUsers) > 0 {
-		this.say(in, "error.cmd_votetick_in_progress")
+		this.say("error.cmd_votetick_in_progress")
 		return false
 	}
 	votetickCmd := strings.TrimSpace(userInput[index:])
@@ -1002,18 +1004,18 @@ func (this *Mindustry) proc_votetick(in io.WriteCloser, userName string, userInp
 
 	if cmd, ok := this.cmds[votetickCmdHead]; ok {
 		if !cmd.isVote {
-			this.say(in, "error.cmd_votetick_not_permit", votetickCmdHead)
+			this.say("error.cmd_votetick_not_permit", votetickCmdHead)
 			return false
 		}
 	} else {
-		this.say(in, "error.cmd_votetick_cmd_error", votetickCmdHead)
+		this.say("error.cmd_votetick_cmd_error", votetickCmdHead)
 		return false
 	}
 	handleFunc := this.proc_directCmd
 	if tempHandleFunc, ok := this.userCmdProcHandles[votetickCmdHead]; ok {
 		handleFunc = tempHandleFunc
 	}
-	checkRslt := handleFunc(in, userName, votetickCmd, true)
+	checkRslt := handleFunc(userName, votetickCmd, true)
 	if !checkRslt {
 		return false
 	}
@@ -1029,16 +1031,16 @@ func (this *Mindustry) proc_votetick(in io.WriteCloser, userName string, userInp
 		<-timer.C
 		isSucc, agreeCnt, adminAgainstCnt := this.checkVote()
 		if isSucc {
-			this.say(in, "info.votetick_pass", this.playCnt, agreeCnt)
-			handleFunc(in, userName, votetickCmd, false)
+			this.say("info.votetick_pass", this.playCnt, agreeCnt)
+			handleFunc(userName, votetickCmd, false)
 		} else {
-			this.say(in, "info.votetick_fail", this.playCnt, agreeCnt, adminAgainstCnt)
+			this.say("info.votetick_fail", this.playCnt, agreeCnt, adminAgainstCnt)
 		}
 		this.votetickUsers = make(map[string]int)
 		this.currProcCmd = ""
 	}()
 
-	this.say(in, "info.votetick_begin_info")
+	this.say("info.votetick_begin_info")
 	return true
 }
 func checkMode(inputMode string) bool {
@@ -1047,10 +1049,10 @@ func checkMode(inputMode string) bool {
 	}
 	return true
 }
-func (this *Mindustry) proc_mode(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_mode(userName string, userInput string, isOnlyCheck bool) bool {
 	temps := strings.Split(userInput, " ")
 	if len(temps) < 2 {
-		this.say(in, "info.mode_show", this.mode)
+		this.say("info.mode_show", this.mode)
 		return false
 	}
 	inputMode := temps[1]
@@ -1058,61 +1060,61 @@ func (this *Mindustry) proc_mode(in io.WriteCloser, userName string, userInput s
 		inputMode = ""
 	}
 	if !checkMode(inputMode) {
-		this.say(in, "error.cmd_host_mode_invalid", userInput)
+		this.say("error.cmd_host_mode_invalid", userInput)
 		return false
 	}
 	if isOnlyCheck {
 		return true
 	}
 	this.mode = inputMode
-	this.say(in, "info.mode_show", this.mode)
+	this.say("info.mode_show", this.mode)
 	return true
 }
 
-func (this *Mindustry) proc_mapManage(in io.WriteCloser, userName string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_mapManage(userName string, userInput string, isOnlyCheck bool) bool {
 	if this.m_isPermitMapModify {
-		this.say(in, "error.cmd_mapManage_started")
+		this.say("error.cmd_mapManage_started")
 		return false
 	}
 	if isOnlyCheck {
 		return true
 	}
-	this.say(in, "info.cmd_mapManage_start")
+	this.say("info.cmd_mapManage_start")
 	this.m_isPermitMapModify = true
 	go func() {
 		timer := time.NewTimer(time.Duration(600) * time.Second)
 		<-timer.C
 		this.m_isPermitMapModify = false
-		this.say(in, "info.cmd_mapManage_end")
+		this.say("info.cmd_mapManage_end")
 	}()
 	return true
 }
-func (this *Mindustry) procUsrCmd(in io.WriteCloser, userName string, userInput string) {
+func (this *Mindustry) procUsrCmd(userName string, userInput string) {
 	temps := strings.Split(userInput, " ")
 	cmdName := temps[0]
 
 	if cmd, ok := this.cmds[cmdName]; ok {
 		if this.users[userName].level < cmd.level {
-			this.say(in, "error.cmd_permission_denied", cmdName)
+			this.say("error.cmd_permission_denied", cmdName)
 			return
 		} else {
 			if this.currProcCmd != "" {
-				this.say(in, "error.cmd_is_exceuting", this.currProcCmd)
+				this.say("error.cmd_is_exceuting", this.currProcCmd)
 				return
 			}
 
 			if handleFunc, ok := this.userCmdProcHandles[cmdName]; ok {
-				handleFunc(in, userName, userInput, false)
+				handleFunc(userName, userInput, false)
 			} else {
-				this.userCmdProcHandles["directCmd"](in, userName, userInput, false)
+				this.userCmdProcHandles["directCmd"](userName, userInput, false)
 			}
 		}
 
 	} else {
-		this.say(in, "error.cmd_invalid_user", cmdName)
+		this.say("error.cmd_invalid_user", cmdName)
 	}
 }
-func (this *Mindustry) multiLineRsltCmdComplete(in io.WriteCloser, line string) bool {
+func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 	index := -1
 	if this.currProcCmd == "maps" {
 		if strings.Index(line, "Map directory:") >= 0 {
@@ -1121,7 +1123,7 @@ func (this *Mindustry) multiLineRsltCmdComplete(in io.WriteCloser, line string) 
 				mapsInfo += " "
 				mapsInfo += ("[cyan](" + strconv.Itoa(index) + ")[white]" + name)
 			}
-			this.say(in, "info.maps_list", mapsInfo)
+			this.say("info.maps_list", mapsInfo)
 			return true
 		}
 		mapNameEndIndex := -1
@@ -1177,13 +1179,13 @@ func getUserByOutput(key string, cmdBody string) (string, string, bool) {
 	uuid := strings.TrimSpace(userInfo[1:index])
 	return userName, uuid, true
 }
-func (this *Mindustry) output(line string, in io.WriteCloser) {
+func (this *Mindustry) output(line string) {
 	index := strings.Index(line, SERVER_ERR_LOG)
 	if index >= 0 {
 		errInfo := strings.TrimSpace(line[index+len(SERVER_ERR_LOG):])
 		if strings.Contains(errInfo, "io.anuke.arc.util.ArcRuntimeException: File not found") {
 			log.Printf("map not found , force exit!\n")
-			this.execCmd(in, "exit")
+			this.execCmd("exit")
 		}
 		this.cmdFailReason = errInfo
 		return
@@ -1195,8 +1197,8 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 	}
 	cmdBody := strings.TrimSpace(line[index+len(SERVER_INFO_LOG):])
 	if this.currProcCmd == "maps" || this.currProcCmd == "status" {
-		//this.say(in, line)
-		if this.multiLineRsltCmdComplete(in, cmdBody) {
+		//this.say( line)
+		if this.multiLineRsltCmdComplete(cmdBody) {
 			this.currProcCmd = ""
 		}
 		return
@@ -1210,7 +1212,7 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 			}
 			sayBody := strings.TrimSpace(cmdBody[index+1:])
 			if strings.HasPrefix(sayBody, "\\") || strings.HasPrefix(sayBody, "/") || strings.HasPrefix(sayBody, "!") {
-				this.procUsrCmd(in, userName, sayBody[1:])
+				this.procUsrCmd(userName, sayBody[1:])
 			} else if len(this.votetickUsers) > 0 {
 				if sayBody == "1" {
 					log.Printf("%s votetick agree\n", userName)
@@ -1232,8 +1234,8 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 			return
 		}
 		if userName == "Server" {
-			this.say(in, "error.login_forbbidden_username")
-			this.execCmd(in, "kick "+userName)
+			this.say("error.login_forbbidden_username")
+			this.execCmd("kick " + userName)
 			return
 		}
 		this.onlineUser(userName, uuid)
@@ -1241,11 +1243,11 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 		if this.users[userName].isAdmin {
 			time.Sleep(1 * time.Second)
 			if this.users[userName].isSuperAdmin {
-				this.say(in, "info.welcom_super_admin", userName)
+				this.say("info.welcom_super_admin", userName)
 			} else {
-				this.say(in, "info.welcom_admin", userName)
+				this.say("info.welcom_admin", userName)
 			}
-			this.execCmd(in, "admin "+userName)
+			this.execCmd("admin " + userName)
 		}
 
 	} else if strings.HasSuffix(cmdBody, USER_DISCONNECTED_KEY) {
@@ -1255,21 +1257,21 @@ func (this *Mindustry) output(line string, in io.WriteCloser) {
 			return
 		}
 		if userName == "Server" {
-			this.say(in, "error.login_forbbidden_username")
-			this.execCmd(in, "kick "+userName)
+			this.say("error.login_forbbidden_username")
+			this.execCmd("kick " + userName)
 			return
 		}
 		this.offlineUser(userName, uuid)
 	} else if strings.HasPrefix(cmdBody, SERVER_READY_KEY) {
 		this.playCnt = 0
 		this.serverIsRun = true
-		this.netBan(in)
-		this.netBan(in)
-		this.netBan(in)
+		this.netBan()
+		this.netBan()
+		this.netBan()
 
-		this.execCmd(in, "name "+this.name)
-		this.execCmd(in, "port "+strconv.Itoa(this.port))
-		this.execCmd(in, "host Fortress")
+		this.execCmd("name " + this.name)
+		this.execCmd("port " + strconv.Itoa(this.port))
+		this.execCmd("host Fortress")
 	} else if strings.HasPrefix(cmdBody, SERVER_STSRT_KEY) {
 		log.Printf("server starting!\n")
 		this.serverIsRun = true
