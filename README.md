@@ -55,13 +55,13 @@ Installation
 3. It is forbidden to manually modify admin.json during game running. Please execute the exit command in the console to exit the management program and then modify the file.  
 4. Start the execution program of the corresponding operating system, such as mindustry_admin_linux_386
  
-Chat room command help
+in-game command help
 ===================================
  * 1)/maps 
  to view the currently available map, the number in front of the map is ID  
 * 2)/hostx [id] <mode> 
  Uses ID to change maps. When changing maps, the server will automatically restart.  
-* 3) /save [slot] 
+* 3)/save [slot] 
  When slot is not input, it is automatically saved as the corresponding number of the current day time/10. Note that it is better not to have any enemy that have not been eradicated when saving, otherwise these monsters may be refreshed to any place on the map when loading archives.  
 * 4)/Load slot 
  Command checks whether the slot is illegal before execution, and automatically restarts the server when loading  
