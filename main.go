@@ -1321,7 +1321,10 @@ func main() {
 	if *map_port != 0 {
 		mindustry.mapMangePort = *map_port
 	}
-	mindustry.mode = *mode
+	if *mode != "" {
+		mindustry.mode = *mode
+	}
+
 	mindustry.startMapUpServer()
 	mindustry.run()
 }
