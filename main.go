@@ -103,6 +103,7 @@ type Mindustry struct {
 	c                      *cron.Cron
 	cmdIn                  io.WriteCloser
 	fpsInfo                string
+	isInGameCmd            bool
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -391,7 +392,7 @@ func (this *Mindustry) initStatus() {
 	this.serverIsRun = false
 	this.playCnt = 0
 	this.m_isPermitMapModify = false
-	this.fpsInfo = ""
+	this.fpsInfo = "UNKOWN"
 	this.users = make(map[string]User)
 	this.votetickUsers = make(map[string]int)
 }
@@ -544,9 +545,14 @@ func (this *Mindustry) tenMinTask() {
 		this.execCmd("exit")
 	} else {
 		this.say(this.notice)
-		log.Printf("update game status.\n")
-		this.currProcCmd = "status"
-		this.execCmd("status ")
+		if this.currProcCmd != "" {
+			log.Printf("cmd(%s) is running.\n", this.currProcCmd)
+		} else {
+			log.Printf("update game status.\n")
+			this.currProcCmd = "status"
+			this.isInGameCmd = false
+			this.execCmd("status ")
+		}
 	}
 }
 func (this *Mindustry) addUser(name string) {
@@ -723,7 +729,9 @@ func (this *Mindustry) cmdWaitTimeout(userName string, userInput string, cmdName
 		timer := time.NewTimer(time.Duration(5) * time.Second)
 		<-timer.C
 		if this.currProcCmd != "" {
-			this.say("error.cmd_timeout", this.currProcCmd)
+			if this.isInGameCmd {
+				this.say("error.cmd_timeout", this.currProcCmd)
+			}
 			this.currProcCmd = ""
 		}
 	}()
@@ -958,9 +966,8 @@ func (this *Mindustry) proc_show(userName string, userInput string, isOnlyCheck 
 	if isOnlyCheck {
 		return true
 	}
-	this.say("info.ver", _VERSION_)
-	this.say("info.cpu_temperature", getCpuTemp())
-	this.say("%s", this.fpsInfo)
+	this.proc_status(userName, userInput, false)
+
 	return true
 }
 func (this *Mindustry) proc_admins(userName string, userInput string, isOnlyCheck bool) bool {
@@ -1121,7 +1128,7 @@ func (this *Mindustry) procUsrCmd(userName string, userInput string) {
 				this.say("error.cmd_is_exceuting", this.currProcCmd)
 				return
 			}
-
+			this.isInGameCmd = true
 			if handleFunc, ok := this.userCmdProcHandles[cmdName]; ok {
 				handleFunc(userName, userInput, false)
 			} else {
@@ -1132,6 +1139,11 @@ func (this *Mindustry) procUsrCmd(userName string, userInput string) {
 	} else {
 		this.say("error.cmd_invalid_user", cmdName)
 	}
+}
+func (this *Mindustry) showStatus() {
+	this.say("info.ver", _VERSION_)
+	this.say("info.cpu_temperature", getCpuTemp())
+	this.say("info.status_show", this.fpsInfo)
 }
 func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 	index := -1
@@ -1170,14 +1182,19 @@ func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 			if count, ok := strconv.Atoi(countStr); ok == nil {
 				this.playCnt = count
 			}
+			if this.isInGameCmd {
+				this.showStatus()
+			}
 			return true
 		} else if strings.Index(line, "No players connected.") >= 0 {
 			this.playCnt = 0
+			this.showStatus()
 			return true
 		} else if strings.Index(line, "Status: server closed") >= 0 {
 			this.serverIsRun = false
 			this.playCnt = 0
 
+			this.showStatus()
 			return true
 		}
 	}

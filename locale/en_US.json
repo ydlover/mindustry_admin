@@ -61,7 +61,8 @@
 	"votetick_fail":"Votetick failed, all:%d, agree:%d, [cyan]Admin[] against:%d",
 	"mode_show":"Server mode is [%s],If mode is not set, you can specify a mode when executing host or hostx commands",
 	"cmd_mapManage_start": "map manage is started(600 second),Maps will be uploaded and deleted.",
-	"cmd_mapManage_end": "map manage is end,maps will not be uploaded and deleted."
+	"cmd_mapManage_end": "map manage is end,maps will not be uploaded and deleted.",
+	"status_show": "status:%s"
 },
   "error" : {
 	"admin_unremoved" : "[%s] not found!",
