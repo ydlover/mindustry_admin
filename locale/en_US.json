@@ -34,7 +34,7 @@
 	"slots" : "%s [sky]Display all available save slots",
     "mode": "%s [mode] [sky]view or fixed mode set by the current server, fixed mode set when executing host or hostx commands are not allowed to specify mode, Modes: pvp, attack, sandbox, survival, none",
 	"vote" : "%s <cmd> - [sky]Votetick(60 second), vote by sending 1 or 0 (Yes:1, No:0)",
-	"mapManage" : "%s - [sky]map manage is started(600 second),Maps will be uploaded and deleted."
+	"mapManage" : "%s - [sky]Map manage will start(600 second limit),Maps can be uploaded and deleted."
   },
   "info" : {
 	"auto_save" : "Auto save %d",
@@ -60,8 +60,8 @@
 	"votetick_pass":"Votetick passed, all:%d, agree:%d",
 	"votetick_fail":"Votetick failed, all:%d, agree:%d, [cyan]Admin[] against:%d",
 	"mode_show":"Server mode is [%s],If mode is not set, you can specify a mode when executing host or hostx commands",
-	"cmd_mapManage_start": "map manage is started(600 second),Maps will be uploaded and deleted.",
-	"cmd_mapManage_end": "map manage is end,maps will not be uploaded and deleted.",
+	"cmd_mapManage_start": "Map manage has started(600 seconds limit),Maps can now be uploaded and deleted.",
+	"cmd_mapManage_end": "Map manage has ended,maps can no longer be uploaded and deleted.",
 	"status_show": "status:%s"
 },
   "error" : {
