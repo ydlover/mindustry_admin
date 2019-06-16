@@ -1299,7 +1299,14 @@ func (this *Mindustry) output(line string) {
 	}
 }
 func (this *Mindustry) run() {
-	para := strings.Split(this.jarPath, " ")
+	inPara := strings.Split(this.jarPath, " ")
+	para := []string{"-jar"}
+	index := strings.Index(this.jarPath, "-jar")
+	if index < 0 {
+		para = append(para, inPara...)
+	} else {
+		para = inPara
+	}
 	for {
 		this.execCommand("java", para)
 		if this.serverIsStart {
