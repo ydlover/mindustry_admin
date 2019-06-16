@@ -102,6 +102,7 @@ type Mindustry struct {
 	maxMapCount            int
 	c                      *cron.Cron
 	cmdIn                  io.WriteCloser
+	fpsInfo                string
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -390,6 +391,7 @@ func (this *Mindustry) initStatus() {
 	this.serverIsRun = false
 	this.playCnt = 0
 	this.m_isPermitMapModify = false
+	this.fpsInfo = ""
 	this.users = make(map[string]User)
 	this.votetickUsers = make(map[string]int)
 }
@@ -958,6 +960,7 @@ func (this *Mindustry) proc_show(userName string, userInput string, isOnlyCheck 
 	}
 	this.say("info.ver", _VERSION_)
 	this.say("info.cpu_temperature", getCpuTemp())
+	this.say("%s", this.fpsInfo)
 	return true
 }
 func (this *Mindustry) proc_admins(userName string, userInput string, isOnlyCheck bool) bool {
@@ -1157,7 +1160,10 @@ func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 			this.maps = append(this.maps, strings.TrimSpace(line[:mapNameEndIndex]))
 		}
 	} else if this.currProcCmd == "status" {
-
+		//"   34 FPS, 22 MB used."
+		if strings.Index(line, "FPS") >= 0 && strings.Index(line, "MB used.") >= 0 {
+			this.fpsInfo = strings.TrimSpace(line)
+		}
 		index = strings.Index(line, "Players:")
 		if index >= 0 {
 			countStr := strings.TrimSpace(line[index+len("Players:")+1:])
