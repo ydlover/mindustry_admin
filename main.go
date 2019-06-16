@@ -87,6 +87,7 @@ type Mindustry struct {
 	currProcCmd            string
 	notice                 string //cron task auto notice msg
 	playCnt                int
+	firstIsStart           bool
 	serverIsStart          bool
 	serverIsRun            bool
 	maps                   []string
@@ -386,7 +387,6 @@ func (this *Mindustry) loadConfig() {
 
 }
 func (this *Mindustry) initStatus() {
-	this.serverIsStart = true
 	this.serverIsRun = false
 	this.playCnt = 0
 	this.m_isPermitMapModify = false
@@ -401,6 +401,8 @@ func (this *Mindustry) init() {
 	rand.Seed(time.Now().UnixNano())
 	this.name = fmt.Sprintf("mindustry-%d", rand.Int())
 	this.jarPath = "server-release.jar"
+	this.firstIsStart = true
+	this.serverIsStart = false
 	this.c = cron.New()
 	this.adminCfg = new(AdminCfg)
 	this.remoteBanCfg = new(BanCfg)
@@ -449,12 +451,16 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 	cmd := exec.Command(commandName, params...)
 	log.Println(cmd.Args)
 	stdout, outErr := cmd.StdoutPipe()
-	var inErr error
-	this.cmdIn, inErr = cmd.StdinPipe()
+	stderr, errErr := cmd.StderrPipe()
 	if outErr != nil {
 		return outErr
 	}
+	if errErr != nil {
+		return errErr
+	}
 
+	var inErr error
+	this.cmdIn, inErr = cmd.StdinPipe()
 	if inErr != nil {
 		return inErr
 	}
@@ -500,6 +506,16 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 		fmt.Printf(line)
 		this.output(StripColor(line))
 	}
+	readerErr := bufio.NewReader(stderr)
+
+	for {
+		line, err2 := readerErr.ReadString('\n')
+		if err2 != nil || io.EOF == err2 {
+			break
+		}
+		fmt.Printf(line)
+	}
+
 	cmd.Wait()
 	return nil
 }
@@ -1274,12 +1290,16 @@ func (this *Mindustry) output(line string) {
 		this.execCmd("host Fortress")
 	} else if strings.HasPrefix(cmdBody, SERVER_STSRT_KEY) {
 		log.Printf("server starting!\n")
+		if this.firstIsStart {
+			this.serverIsStart = true
+			this.firstIsStart = false
+		}
 		this.serverIsRun = true
 		this.playCnt = 0
 	}
 }
 func (this *Mindustry) run() {
-	var para = []string{"-jar", this.jarPath}
+	para := strings.Split(this.jarPath, " ")
 	for {
 		this.execCommand("java", para)
 		if this.serverIsStart {
