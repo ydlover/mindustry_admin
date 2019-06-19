@@ -516,7 +516,7 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 		if err2 != nil || io.EOF == err2 {
 			break
 		}
-		fmt.Printf(line)
+		log.Printf(line)
 	}
 
 	cmd.Wait()
