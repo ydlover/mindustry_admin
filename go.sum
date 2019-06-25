@@ -1,0 +1,6 @@
+github.com/kortemy/lingo v0.0.0-20181220065520-bfdb55fa4143 h1:uB3sRFOhtyrBtE2pawUgCuDLthfU/pNwgZjqVWyG9P0=
+github.com/kortemy/lingo v0.0.0-20181220065520-bfdb55fa4143/go.mod h1:VzmmX7JXe7HbJ7x2b9/hV8JzZNPumO+pL8+dsDWICq0=
+github.com/larspensjo/config v0.0.0-20160228172812-b6db95dc6321 h1:HuvFF+bNfti7Q3taQTLox7YntC2IzUzM8pn2zyRTn98=
+github.com/larspensjo/config v0.0.0-20160228172812-b6db95dc6321/go.mod h1:2tvhHYSOp38Gz/nhlXdCBepDFHG1/GCI0nuk4Dv9EyM=
+github.com/robfig/cron v1.1.0 h1:jk4/Hud3TTdcrJgUOBgsqrZBarcxl6ADIjSC2iniwLY=
+github.com/robfig/cron v1.1.0/go.mod h1:JGuDeoQd7Z6yL4zQhZ3OPEVHB7fL6Ka6skscFHfmt2k=

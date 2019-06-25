@@ -9,10 +9,12 @@ else
         echo "eg:build.sh 1.0"
         exit
 fi
-gox -ldflags "-X main._VERSION_=${TAG}" -osarch="windows/amd64"
-gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/386"
-gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/amd64"
-gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/arm"
-gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/arm64"
-gox -ldflags "-X main._VERSION_=${TAG}" -osarch="windows/386"
+if [ "$2" != 'nb' ]; then
+    gox -ldflags "-X main._VERSION_=${TAG}" -osarch="windows/amd64"
+    gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/386"
+    gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/amd64"
+    gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/arm"
+    gox -ldflags "-X main._VERSION_=${TAG}" -osarch="linux/arm64"
+    gox -ldflags "-X main._VERSION_=${TAG}" -osarch="windows/386"
+fi
 zip -r release_${TAG}.zip . -x "mindustry_admin" -x "*.zip" -x "./config/*" -x "./server-release.jar" -x "*.go" -x "./logs/*" -x ".git/*" -x ".gitignore" -x "./web/*"
