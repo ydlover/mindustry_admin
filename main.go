@@ -316,6 +316,14 @@ func (this *Mindustry) loadConfig() {
 				name := strings.TrimSpace(optionValue)
 				this.name = name
 			}
+			optionValue, err = cfg.String("server", "nameHead")
+			if err == nil {
+				nameHead := strings.TrimSpace(optionValue)
+				this.name = nameHead + this.name
+			} else {
+				this.name = "[CIG]" + this.name
+			}
+
 			optionValue, err = cfg.String("server", "jarPath")
 			if err == nil {
 				jarPath := strings.TrimSpace(optionValue)
