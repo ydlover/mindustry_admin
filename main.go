@@ -825,7 +825,7 @@ func (this *Mindustry) proc_host(userName string, userInput string, isOnlyCheck 
 		return true
 	}
 	this.say("info.server_restart")
-	if inputMode = "mission"{
+	if inputMode == "mission" {
 		this.missionMap = mapName
 		this.execCmd("exit")
 		return true
@@ -1104,7 +1104,7 @@ func (this *Mindustry) proc_mode(userName string, userInput string, isOnlyCheck 
 		this.say("info.mode_show", this.mode)
 		return false
 	}
-	
+
 	if !checkMode(inputMode) {
 		this.say("error.cmd_host_mode_invalid", userInput)
 		return false
