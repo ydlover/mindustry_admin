@@ -827,6 +827,7 @@ func (this *Mindustry) proc_host(userName string, userInput string, isOnlyCheck 
 	this.say("info.server_restart")
 	if inputMode == "mission" {
 		this.missionMap = mapName
+		this.serverIsRun = false
 		this.execCmd("exit")
 		return true
 	}
@@ -1396,7 +1397,8 @@ func main() {
 	if *mode != "" {
 		mindustry.mode = *mode
 	}
-
-	mindustry.startMapUpServer()
+	if mindustry.mode != "mission" {
+		mindustry.startMapUpServer()
+	}
 	mindustry.run()
 }
