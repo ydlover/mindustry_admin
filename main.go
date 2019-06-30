@@ -104,6 +104,7 @@ type Mindustry struct {
 	cmdIn                  io.WriteCloser
 	fpsInfo                string
 	isInGameCmd            bool
+	missionMap             string
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -382,8 +383,8 @@ func (this *Mindustry) loadConfig() {
 
 			optionValue, err = cfg.String("server", "mode")
 			if err == nil {
-				if optionValue != "none" && optionValue != "" && (optionValue == "mission" || checkMode(optionValue)) {
-					if optionValue == "mission" || checkMode(optionValue) {
+				if optionValue != "none" && optionValue != "" && checkMode(optionValue) {
+					if checkMode(optionValue) {
 						this.mode = optionValue
 						log.Printf("[ini]fix mode:%s\n", this.mode)
 					} else {
@@ -412,6 +413,7 @@ func (this *Mindustry) init() {
 	rand.Seed(time.Now().UnixNano())
 	this.name = fmt.Sprintf("mindustry-%d", rand.Int())
 	this.jarPath = "server-release.jar"
+	this.missionMap = "nuclearProductionComplex"
 	this.firstIsStart = true
 	this.serverIsStart = false
 	this.c = cron.New()
@@ -815,9 +817,6 @@ func (this *Mindustry) proc_host(userName string, userInput string, isOnlyCheck 
 		this.say("error.cmd_invalid", userInput)
 		return false
 	}
-	if inputMode == "mission" {
-		inputMode = ""
-	}
 	if !checkMode(inputMode) {
 		this.say("error.cmd_host_mode_invalid", userInput)
 		return false
@@ -826,6 +825,11 @@ func (this *Mindustry) proc_host(userName string, userInput string, isOnlyCheck 
 		return true
 	}
 	this.say("info.server_restart")
+	if inputMode = "mission"{
+		this.missionMap = mapName
+		this.execCmd("exit")
+		return true
+	}
 	this.execCmd("reloadmaps")
 	time.Sleep(time.Duration(5) * time.Second)
 	this.execCmd("stop")
@@ -1081,7 +1085,7 @@ func (this *Mindustry) proc_votetick(userName string, userInput string, isOnlyCh
 	return true
 }
 func checkMode(inputMode string) bool {
-	if inputMode != "pvp" && inputMode != "attack" && inputMode != "" && inputMode != "sandbox" && inputMode != "survival" {
+	if inputMode != "mission" && inputMode != "pvp" && inputMode != "attack" && inputMode != "" && inputMode != "sandbox" && inputMode != "survival" {
 		return false
 	}
 	return true
@@ -1096,6 +1100,11 @@ func (this *Mindustry) proc_mode(userName string, userInput string, isOnlyCheck 
 	if inputMode == "none" {
 		inputMode = ""
 	}
+	if inputMode == "mission" {
+		this.say("info.mode_show", this.mode)
+		return false
+	}
+	
 	if !checkMode(inputMode) {
 		this.say("error.cmd_host_mode_invalid", userInput)
 		return false
@@ -1320,7 +1329,7 @@ func (this *Mindustry) output(line string) {
 		this.execCmd("name " + this.name)
 		this.execCmd("port " + strconv.Itoa(this.port))
 		if this.mode == "mission" {
-			this.execCmd("host Fortress mission")
+			this.execCmd("host " + this.missionMap + " mission")
 		} else {
 			this.execCmd("host Fortress")
 		}
