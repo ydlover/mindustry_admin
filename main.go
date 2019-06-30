@@ -815,6 +815,9 @@ func (this *Mindustry) proc_host(userName string, userInput string, isOnlyCheck 
 		this.say("error.cmd_invalid", userInput)
 		return false
 	}
+	if inputMode == "mission" {
+		inputMode = ""
+	}
 	if !checkMode(inputMode) {
 		this.say("error.cmd_host_mode_invalid", userInput)
 		return false
@@ -1313,12 +1316,14 @@ func (this *Mindustry) output(line string) {
 		this.playCnt = 0
 		this.serverIsRun = true
 		this.netBan()
-		this.netBan()
-		this.netBan()
 
 		this.execCmd("name " + this.name)
 		this.execCmd("port " + strconv.Itoa(this.port))
-		this.execCmd("host Fortress")
+		if this.mode == "mission" {
+			this.execCmd("host Fortress mission")
+		} else {
+			this.execCmd("host Fortress")
+		}
 	} else if strings.HasPrefix(cmdBody, SERVER_STSRT_KEY) {
 		log.Printf("server starting!\n")
 		if this.firstIsStart {
