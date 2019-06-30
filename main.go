@@ -382,8 +382,8 @@ func (this *Mindustry) loadConfig() {
 
 			optionValue, err = cfg.String("server", "mode")
 			if err == nil {
-				if optionValue != "none" && optionValue != "" && checkMode(optionValue) {
-					if checkMode(optionValue) {
+				if optionValue != "none" && optionValue != "" && (optionValue == "mission" || checkMode(optionValue)) {
+					if optionValue == "mission" || checkMode(optionValue) {
 						this.mode = optionValue
 						log.Printf("[ini]fix mode:%s\n", this.mode)
 					} else {
