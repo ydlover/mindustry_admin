@@ -509,26 +509,32 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 		}
 	}(cmd)
 
-	reader := bufio.NewReader(stdout)
+	go func() {
+		reader := bufio.NewReader(stdout)
 
-	for {
-		line, err2 := reader.ReadString('\n')
-		if err2 != nil || io.EOF == err2 {
-			break
+		for {
+			line, err2 := reader.ReadString('\n')
+			if err2 != nil || io.EOF == err2 {
+				break
+			}
+			fmt.Printf(line)
+			this.output(StripColor(line))
 		}
-		fmt.Printf(line)
-		this.output(StripColor(line))
-	}
-	readerErr := bufio.NewReader(stderr)
-
-	for {
-		line, err2 := readerErr.ReadString('\n')
-		if err2 != nil || io.EOF == err2 {
-			break
+	}()
+	go func() {
+		readerErr := bufio.NewReader(stderr)
+		for {
+			line, err2 := readerErr.ReadString('\n')
+			if err2 != nil || io.EOF == err2 {
+				break
+			}
+			log.Printf(line)
+			if strings.Contains(line, "java.lang.RuntimeException") {
+				log.Printf("server crash, force reboot!\n")
+				this.serverIsRun = false
+			}
 		}
-		log.Printf(line)
-	}
-
+	}()
 	cmd.Wait()
 	return nil
 }
