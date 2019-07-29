@@ -105,6 +105,9 @@ type Mindustry struct {
 	fpsInfo                string
 	isInGameCmd            bool
 	missionMap             string
+	timeoutCnt             int
+	killCh                 chan os.Signal
+	cmdWaitTimer           *time.Timer
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -400,6 +403,7 @@ func (this *Mindustry) loadConfig() {
 func (this *Mindustry) initStatus() {
 	this.serverIsRun = false
 	this.playCnt = 0
+	this.timeoutCnt = 0
 	this.m_isPermitMapModify = false
 	this.fpsInfo = "UNKOWN"
 	this.users = make(map[string]User)
@@ -422,6 +426,7 @@ func (this *Mindustry) init() {
 	this.port = 6567
 	this.mapMangePort = 6569
 	this.maxMapCount = 15
+	this.killCh = make(chan os.Signal)
 	this.loadConfig()
 	this.loadAdminConfig()
 	this.userCmdProcHandles["admin"] = this.proc_admin
@@ -480,16 +485,16 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 	cmd.Start()
 	this.initStatus()
 	go func(cmd *exec.Cmd) {
-		c := make(chan os.Signal)
-		signal.Notify(c, os.Interrupt, os.Kill)
-		s := <-c
+		this.killCh = make(chan os.Signal)
+		signal.Notify(this.killCh, os.Interrupt, os.Kill)
+		s := <-this.killCh
 		if cmd.Process != nil {
 			log.Printf("sub process exit:%s", s)
 			cmd.Process.Kill()
 		}
 	}(cmd)
 	this.c.Start()
-	go func(cmd *exec.Cmd) {
+	go func() {
 		reader := bufio.NewReader(os.Stdin)
 		for {
 			line, err2 := reader.ReadString('\n')
@@ -507,7 +512,7 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 			}
 			this.execCmd(inputCmd)
 		}
-	}(cmd)
+	}()
 
 	go func() {
 		reader := bufio.NewReader(stdout)
@@ -556,7 +561,10 @@ func (this *Mindustry) tenMinTask() {
 	if !this.serverIsStart {
 		return
 	}
-	if !this.serverIsRun {
+	if this.timeoutCnt >= 3 {
+		log.Printf("game is not response,exit.\n")
+		this.killCh <- os.Kill
+	} else if !this.serverIsRun {
 		log.Printf("game is not running,exit.\n")
 		this.execCmd("exit")
 	} else {
@@ -565,9 +573,8 @@ func (this *Mindustry) tenMinTask() {
 			log.Printf("cmd(%s) is running.\n", this.currProcCmd)
 		} else {
 			log.Printf("update game status.\n")
-			this.currProcCmd = "status"
 			this.isInGameCmd = false
-			this.execCmd("status ")
+			this.proc_status("Server", "status", false)
 		}
 	}
 }
@@ -742,9 +749,11 @@ func getSlotList() string {
 }
 func (this *Mindustry) cmdWaitTimeout(userName string, userInput string, cmdName string) {
 	go func() {
-		timer := time.NewTimer(time.Duration(5) * time.Second)
-		<-timer.C
+		this.cmdWaitTimer = time.NewTimer(time.Duration(5) * time.Second)
+		<-this.cmdWaitTimer.C
 		if this.currProcCmd != "" {
+			log.Printf("cmd:%s timeout!\n", this.currProcCmd)
+			this.timeoutCnt++
 			if this.isInGameCmd {
 				this.say("error.cmd_timeout", this.currProcCmd)
 			}
@@ -1182,6 +1191,7 @@ func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 				mapsInfo += ("[cyan](" + strconv.Itoa(index) + ")[white]" + name)
 			}
 			this.say("info.maps_list", mapsInfo)
+			this.timeoutCnt = 0
 			return true
 		}
 		mapNameEndIndex := -1
@@ -1202,6 +1212,7 @@ func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 		//"   34 FPS, 22 MB used."
 		if strings.Index(line, "FPS") >= 0 && strings.Index(line, "MB used.") >= 0 {
 			this.fpsInfo = strings.TrimSpace(line)
+			this.timeoutCnt = 0
 		}
 		index = strings.Index(line, "Players:")
 		if index >= 0 {
@@ -1216,11 +1227,12 @@ func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 		} else if strings.Index(line, "No players connected.") >= 0 {
 			this.playCnt = 0
 			this.showStatus()
+			this.timeoutCnt = 0
 			return true
 		} else if strings.Index(line, "Status: server closed") >= 0 {
 			this.serverIsRun = false
 			this.playCnt = 0
-
+			this.timeoutCnt = 0
 			this.showStatus()
 			return true
 		}
@@ -1266,6 +1278,9 @@ func (this *Mindustry) output(line string) {
 		//this.say( line)
 		if this.multiLineRsltCmdComplete(cmdBody) {
 			this.currProcCmd = ""
+			if !this.cmdWaitTimer.Stop() {
+				<-this.cmdWaitTimer.C
+			}
 		}
 		return
 	}
@@ -1294,6 +1309,7 @@ func (this *Mindustry) output(line string) {
 	}
 
 	if strings.HasSuffix(cmdBody, USER_CONNECTED_KEY) {
+		this.timeoutCnt = 0
 		userName, uuid, isSucc := getUserByOutput(USER_CONNECTED_KEY, cmdBody)
 		if !isSucc {
 			log.Printf("[%s] invalid\n", cmdBody)
@@ -1317,6 +1333,7 @@ func (this *Mindustry) output(line string) {
 		}
 
 	} else if strings.HasSuffix(cmdBody, USER_DISCONNECTED_KEY) {
+		this.timeoutCnt = 0
 		userName, uuid, isSucc := getUserByOutput(USER_DISCONNECTED_KEY, cmdBody)
 		if !isSucc {
 			log.Printf("[%s] invalid\n", cmdBody)
