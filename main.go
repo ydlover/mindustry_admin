@@ -1278,9 +1278,6 @@ func (this *Mindustry) output(line string) {
 		//this.say( line)
 		if this.multiLineRsltCmdComplete(cmdBody) {
 			this.currProcCmd = ""
-			if !this.cmdWaitTimer.Stop() {
-				<-this.cmdWaitTimer.C
-			}
 		}
 		return
 	}
