@@ -583,7 +583,8 @@ func (this *Mindustry) addUser(name string) {
 		return
 	}
 	this.users[name] = User{name, false, false, 0}
-	log.Printf("add user info :%s\n", name)
+	this.playCnt++
+	log.Printf("add user info :%s,playCnt:%d\n", name, this.playCnt)
 }
 func (this *Mindustry) onlineAdmin(name string) {
 	if _, ok := this.users[name]; !ok {
@@ -678,8 +679,6 @@ func (this *Mindustry) getUserRole(name string, uuid string) int {
 }
 
 func (this *Mindustry) onlineUser(name string, uuid string) {
-	this.playCnt++
-
 	if _, ok := this.users[name]; ok {
 		return
 	}
@@ -692,10 +691,6 @@ func (this *Mindustry) onlineUser(name string, uuid string) {
 	}
 }
 func (this *Mindustry) offlineUser(name string, uuid string) {
-	if this.playCnt > 0 {
-		this.playCnt--
-	}
-
 	if _, ok := this.users[name]; !ok {
 		return
 	}
@@ -708,8 +703,11 @@ func (this *Mindustry) delUser(name string) {
 		log.Printf("del user not exist :%s\n", name)
 		return
 	}
+	if this.playCnt > 0 {
+		this.playCnt--
+	}
 	delete(this.users, name)
-	log.Printf("del user info :%s\n", name)
+	log.Printf("del user info :%s,playCnt:%d\n", name, this.playCnt)
 }
 func (this *Mindustry) execCmd(cmd string) {
 	if cmd == "stop" || cmd == "host" || cmd == "hostx" || cmd == "load" {
@@ -1027,6 +1025,9 @@ func (this *Mindustry) checkVote() (bool, int, int) {
 	agreeCnt := 0
 	adminAgainstCnt := 0
 	for userName, isAgree := range this.votetickUsers {
+		if _, ok := this.users[userName]; !ok {
+			continue
+		}
 		if isAgree == 1 {
 			agreeCnt++
 		} else if _, ok := this.users[userName]; ok {
@@ -1219,6 +1220,7 @@ func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 			countStr := strings.TrimSpace(line[index+len("Players:")+1:])
 			if count, ok := strconv.Atoi(countStr); ok == nil {
 				this.playCnt = count
+				log.Printf("curr playCnt:%d\n", this.playCnt)
 			}
 			if this.isInGameCmd {
 				this.showStatus()
@@ -1248,8 +1250,12 @@ const SERVER_READY_KEY string = "Server loaded. Type 'help' for help."
 const SERVER_STSRT_KEY string = "Opened a server on port"
 
 func getUserByOutput(key string, cmdBody string) (string, string, bool) {
-	userInfo := strings.TrimSpace(cmdBody[:len(cmdBody)-len(key)])
-	index := strings.Index(userInfo, "]")
+	index := strings.Index(cmdBody, key)
+	if index < 0 {
+		return "", "", false
+	}
+	userInfo := strings.TrimSpace(cmdBody[:index])
+	index = strings.Index(userInfo, "]")
 	if index < 0 {
 		return "", "", false
 	}
@@ -1329,7 +1335,7 @@ func (this *Mindustry) output(line string) {
 			this.execCmd("admin " + userName)
 		}
 
-	} else if strings.HasSuffix(cmdBody, USER_DISCONNECTED_KEY) {
+	} else if strings.Index(cmdBody, USER_DISCONNECTED_KEY) > 0 {
 		this.timeoutCnt = 0
 		userName, uuid, isSucc := getUserByOutput(USER_DISCONNECTED_KEY, cmdBody)
 		if !isSucc {
