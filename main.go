@@ -108,6 +108,8 @@ type Mindustry struct {
 	timeoutCnt             int
 	killCh                 chan os.Signal
 	cmdWaitTimer           *time.Timer
+	isAutoRestartedForDay  bool
+	isPlayerExistForHour   bool
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -408,6 +410,8 @@ func (this *Mindustry) initStatus() {
 	this.fpsInfo = "UNKOWN"
 	this.users = make(map[string]User)
 	this.votetickUsers = make(map[string]int)
+	this.isPlayerExistForHour = false
+	this.isAutoRestartedForDay = true
 }
 func (this *Mindustry) init() {
 	this.serverOutR, _ = regexp.Compile(".*(\\[INFO\\]|\\[ERR\\])(.*)")
@@ -546,6 +550,19 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 func (this *Mindustry) hourTask() {
 	hour := time.Now().Hour()
 	log.Printf("hourTask trig:%d\n", hour)
+	isAutoRestartForDay := false
+	if hour >= 2 && hour <= 5 {
+		isAutoRestartForDay = true
+	} else {
+		this.isAutoRestartedForDay = false
+	}
+	if isAutoRestartForDay && !this.isAutoRestartedForDay && !this.isPlayerExistForHour {
+		log.Printf("game is auto restar for not player!\n")
+		this.isAutoRestartedForDay = true
+		this.execCmd("exit")
+		return
+	}
+	this.isPlayerExistForHour = false
 	if this.serverIsRun {
 		this.execCmd("save " + strconv.Itoa(hour))
 		this.say("info.auto_save", hour)
@@ -682,6 +699,7 @@ func (this *Mindustry) onlineUser(name string, uuid string) {
 	if _, ok := this.users[name]; ok {
 		return
 	}
+	this.isPlayerExistForHour = true
 	this.addUser(name)
 	role := this.getUserRole(name, uuid)
 	if role == SUPER_ADMIN {
