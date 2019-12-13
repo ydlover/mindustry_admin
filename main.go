@@ -1262,8 +1262,8 @@ func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 
 const USER_CONNECTED_KEY string = " has connected."
 const USER_DISCONNECTED_KEY string = " has disconnected."
-const SERVER_INFO_LOG string = "[INFO] "
-const SERVER_ERR_LOG string = "[ERR!] "
+const SERVER_INFO_LOG string = "[I] "
+const SERVER_ERR_LOG string = "[E] "
 const SERVER_READY_KEY string = "Server loaded. Type 'help' for help."
 const SERVER_STSRT_KEY string = "Opened a server on port"
 
@@ -1353,7 +1353,7 @@ func (this *Mindustry) output(line string) {
 			this.execCmd("admin " + userName)
 		}
 
-	} else if strings.Index(cmdBody, USER_DISCONNECTED_KEY) > 0 {
+	} else if strings.Index(cmdBody, USER_DISCONNECTED_KEY) > -1 {
 		this.timeoutCnt = 0
 		userName, uuid, isSucc := getUserByOutput(USER_DISCONNECTED_KEY, cmdBody)
 		if !isSucc {
@@ -1366,7 +1366,7 @@ func (this *Mindustry) output(line string) {
 			return
 		}
 		this.offlineUser(userName, uuid)
-	} else if strings.HasPrefix(cmdBody, SERVER_READY_KEY) {
+	} else if strings.Index(cmdBody, SERVER_READY_KEY) > -1 {
 		this.playCnt = 0
 		this.serverIsRun = true
 		this.netBan()
@@ -1378,7 +1378,7 @@ func (this *Mindustry) output(line string) {
 		} else {
 			this.execCmd("host Fortress")
 		}
-	} else if strings.HasPrefix(cmdBody, SERVER_STSRT_KEY) {
+	} else if strings.Index(cmdBody, SERVER_STSRT_KEY) > -1 {
 		log.Printf("server starting!\n")
 		if this.firstIsStart {
 			this.serverIsStart = true
