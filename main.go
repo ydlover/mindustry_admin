@@ -1371,8 +1371,8 @@ func (this *Mindustry) output(line string) {
 		this.serverIsRun = true
 		this.netBan()
 
-		this.execCmd("name " + this.name)
-		this.execCmd("port " + strconv.Itoa(this.port))
+		this.execCmd("config name " + this.name)
+		this.execCmd("config port " + strconv.Itoa(this.port))
 		if this.mode == "mission" {
 			this.execCmd("host " + this.missionMap + " mission")
 		} else {
