@@ -940,7 +940,7 @@ func (this *Mindustry) proc_unadmin(userName string, userInput string, isOnlyChe
 	if isOnlyCheck {
 		return true
 	}
-	this.execCmd("unadmin " + targetName)
+	this.execCmd("admin remove " + targetName)
 	for i, admin := range this.adminCfg.AdminList {
 		if admin.Name == targetName {
 			this.adminCfg.AdminList = append(this.adminCfg.AdminList[:i], this.adminCfg.AdminList[i+1:]...)
@@ -1350,7 +1350,7 @@ func (this *Mindustry) output(line string) {
 			} else {
 				this.say("info.welcom_admin", userName)
 			}
-			this.execCmd("admin " + userName)
+			this.execCmd("admin add " + userName)
 		}
 
 	} else if strings.Index(cmdBody, USER_DISCONNECTED_KEY) > -1 {
