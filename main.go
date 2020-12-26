@@ -263,14 +263,21 @@ func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string, size 
     tr := &http.Transport{
         TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
         Dial: func(netw, addr string) (net.Conn, error) {
-            deadline := time.Now().Add(10 * time.Second)
-            c, err := net.DialTimeout(netw, addr, time.Second*10)
+            deadline := time.Now().Add(300 * time.Second)
+            c, err := net.DialTimeout(netw, addr, time.Second*300)
             if err != nil {
                 return nil, err
             }
             c.SetDeadline(deadline)
             return c, nil
         },
+        
+        Dial: (&net.Dialer{
+                Timeout:   30 * time.Second,
+                KeepAlive: 30 * time.Second,
+        }).Dial,
+        TLSHandshakeTimeout:   10 * time.Second,
+        ResponseHeaderTimeout: 10 * time.Second,
     }
  
     client := &http.Client{Transport: tr}
