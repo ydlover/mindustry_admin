@@ -316,7 +316,7 @@ func (this *Mindustry) downloadMindustryJar(remoteTagInfo *GithubReleasesLatestA
 }
 
 func (this *Mindustry) autoUpdateMindustryVer() {
-    log.Printf("[INFO]update mindustry check.\n")
+    log.Printf("[INFO]autoUpdateMindustryVer check.\n")
     if this.mindustryVersionInfo.IsFixVer {
 		log.Printf("[INFO]Not need update mindustry,IsFixVer is true!\n")
 		return
@@ -1600,7 +1600,6 @@ func (this *Mindustry) output(line string) {
 	}
 }
 func (this *Mindustry) run() {
-    this.autoUpdateMindustryVer()
     replaceJarReg, _ := regexp.Compile("\\S+\\.jar")
     javaParas := this.jarPath
     if this.mindustryVersionInfo.CurrVer != "" && this.mindustryVersionInfo.LocalFileName != "" {
