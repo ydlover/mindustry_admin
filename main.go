@@ -60,6 +60,7 @@ type BanCfg struct {
 type Assets struct {
 	Name                 string `json:"name"`
 	UpdatedAt            string `json:"updated_at"`
+    Size                 int64  `json:"size"`
 	BrowserDownloadUrl   string `json:"browser_download_url"`
 }
 
@@ -257,42 +258,32 @@ func (this *Mindustry) netBan() {
 
 }
 
-func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string) bool {
-    client := &http.Client{
-		Transport: &http.Transport{
-			Dial: func(netw, addr string) (net.Conn, error) {
-				deadline := time.Now().Add(5 * time.Second)
-				c, err := net.DialTimeout(netw, addr, time.Second*5)
-				if err != nil {
-					return nil, err
-				}
-				c.SetDeadline(deadline)
-				return c, nil
-			},
-		},
-	}
-	request, netErr := http.NewRequest("GET", remoteUrl, nil)
+func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string, size int64) bool {
+
+	request, netErr := http.Get(remoteUrl)
 	if netErr != nil {
 		log.Printf("[ERR]Get remote info fail, remoteUrl:%s, netError:%v!\n", remoteUrl, netErr)
 		return false
 	}
-	response, responseErr := client.Do(request)
-	if responseErr != nil {
-		log.Printf("[ERR]Get remote info rsp fail, remoteUrl:%s, netError:%v!\n", remoteUrl, responseErr)
-		return false
-	}
-	if response.StatusCode == 200 {
-		body, err := ioutil.ReadAll(response.Body)
-		if err != nil {
-			log.Printf("[ERR]Get remote info ioutil.ReadAll fail, remoteUrl:%s!\n", remoteUrl)
-			return false
-		}
-        ioutil.WriteFile(localFileName, body, 0644)
-        return true
-    } else {
-		log.Printf("[ERR]Get remote info fail,remote response:remoteUrl:%s, %d!\n", remoteUrl, response.StatusCode)
-	}
-    return false
+    defer resp.Body.Close()
+
+    out, err := os.Create(localFileName)
+    if err != nil {
+        log.Printf("[ERR]Get remote info os.Create fail, remoteUrl:%s, err:%v!\n", remoteUrl, err)
+        return false
+    }
+    defer out.Close()
+    copySize, err = io.Copy(out, resp.Body)
+    if err != nil {
+		log.Printf("[ERR]Get remote info io.Copy fail, remoteUrl:%s, err:%v!\n", remoteUrl, err)
+        return false
+    }
+    if copySize != size {
+		log.Printf("[ERR]Get remote info io.Copy size invalid, remoteUrl:%s, copySize:%d, expSize:%d!\n", remoteUrl, copySize, size)
+        return false
+    }
+    
+    return true
 }
 
 func (this *Mindustry) downloadMindustryJar(remoteTagInfo *GithubReleasesLatestApi) string {
@@ -303,7 +294,7 @@ func (this *Mindustry) downloadMindustryJar(remoteTagInfo *GithubReleasesLatestA
             continue
         }
         localeFileName := remoteTagInfo.TagName + "_server-release.jar"
-        if this.downloadUrl(asset.BrowserDownloadUrl, localeFileName) {
+        if this.downloadUrl(asset.BrowserDownloadUrl, localeFileName, asset.Size) {
             return localeFileName
         }
         log.Printf("[ERR]download remote jar fail,BrowserDownloadUrl:%s, localeFileName:%s!\n", asset.BrowserDownloadUrl, localeFileName)
