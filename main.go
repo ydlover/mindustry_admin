@@ -259,8 +259,13 @@ func (this *Mindustry) netBan() {
 }
 
 func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string, size int64) bool {
+    tr := &http.Transport{
+        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+    }
+ 
+    client := &http.Client{Transport: tr}
 
-	resp, netErr := http.Get(remoteUrl)
+	resp, netErr := client.Get(remoteUrl)
 	if netErr != nil {
 		log.Printf("[ERR]Get remote info fail, remoteUrl:%s, netError:%v!\n", remoteUrl, netErr)
 		return false
