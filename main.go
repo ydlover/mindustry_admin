@@ -353,8 +353,12 @@ func (this *Mindustry) autoUpdateMindustryVer() {
 			log.Printf("[ERR]Get remote mindustry jar info Unmarshal fail!\n")
 			return
 		}
+        if currRemoteReleasesLatest.TagName == "" {
+            log.Printf("[ERR]rempte mindustry version not found, don't need update!\n")
+            return
+        }
         if currRemoteReleasesLatest.TagName == this.mindustryVersionInfo.CurrVer {
-            log.Printf("[INFO]curr mindustry version is lastest,don't need update!\n")
+            log.Printf("[INFO]curr mindustry version is lastest, don't need update!\n")
             return
         }
         localFileName := this.downloadMindustryJar(&currRemoteReleasesLatest)
