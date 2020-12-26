@@ -257,7 +257,7 @@ func (this *Mindustry) netBan() {
 
 }
 
-func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string) string {
+func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string) bool {
     client := &http.Client{
 		Transport: &http.Transport{
 			Dial: func(netw, addr string) (net.Conn, error) {
@@ -274,25 +274,25 @@ func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string) strin
 	request, netErr := http.NewRequest("GET", remoteUrl, nil)
 	if netErr != nil {
 		log.Printf("[ERR]Get remote info fail, remoteUrl:%s, netError:%v!\n", remoteUrl, netErr)
-		return ""
+		return false
 	}
 	response, responseErr := client.Do(request)
 	if responseErr != nil {
 		log.Printf("[ERR]Get remote info rsp fail, remoteUrl:%s, netError:%v!\n", remoteUrl, responseErr)
-		return ""
+		return false
 	}
 	if response.StatusCode == 200 {
 		body, err := ioutil.ReadAll(response.Body)
 		if err != nil {
 			log.Printf("[ERR]Get remote info ioutil.ReadAll fail, remoteUrl:%s!\n", remoteUrl)
-			return ""
+			return false
 		}
         ioutil.WriteFile(localFileName, body, 0644)
-        return ""
+        return true
     } else {
 		log.Printf("[ERR]Get remote info fail,remote response:remoteUrl:%s, %d!\n", remoteUrl, response.StatusCode)
 	}
-    return ""
+    return false
 }
 
 func (this *Mindustry) downloadMindustryJar(remoteTagInfo *GithubReleasesLatestApi) string {
@@ -357,7 +357,7 @@ func (this *Mindustry) autoUpdateMindustryVer() {
             log.Printf("[INFO]curr mindustry version is lastest,don't need update!\n")
             return
         }
-        localFileName := this.downloadMindustryJar(currRemoteReleasesLatest)
+        localFileName := this.downloadMindustryJar(&currRemoteReleasesLatest)
         if localFileName == "" {
             log.Printf("[ERR]downloadMindustryJar fail!\n")
             return
@@ -367,9 +367,9 @@ func (this *Mindustry) autoUpdateMindustryVer() {
         if len(this.mindustryVersionInfo.verList) < 10 {
             this.mindustryVersionInfo.verList = append(this.mindustryVersionInfo.verList, currRemoteReleasesLatest)
         } else {
-            remoteLastestTime, _ = time.Parse(time.RFC3339, currRemoteReleasesLatest.published_at)
+            remoteLastestTime, _ := time.Parse(time.RFC3339, currRemoteReleasesLatest.published_at)
             for index, ver := range this.mindustryVersionInfo.verList {
-                t, _ = time.Parse(time.RFC3339, ver.published_at)
+                t, _ := time.Parse(time.RFC3339, ver.published_at)
                 if remoteLastestTime.After(t) {
                     this.mindustryVersionInfo.verList[index] = currRemoteReleasesLatest
                 }
