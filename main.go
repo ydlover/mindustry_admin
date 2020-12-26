@@ -18,8 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-    "crypto/tls"
-    
+	"crypto/tls"
+
 	"github.com/kortemy/lingo"
 	"github.com/larspensjo/config"
 	"github.com/robfig/cron"
@@ -262,6 +262,15 @@ func (this *Mindustry) netBan() {
 func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string, size int64) bool {
     tr := &http.Transport{
         TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+        Dial: func(netw, addr string) (net.Conn, error) {
+            deadline := time.Now().Add(10 * time.Second)
+            c, err := net.DialTimeout(netw, addr, time.Second*10)
+            if err != nil {
+                return nil, err
+            }
+            c.SetDeadline(deadline)
+            return c, nil
+        },
     }
  
     client := &http.Client{Transport: tr}
