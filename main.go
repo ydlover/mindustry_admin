@@ -579,7 +579,7 @@ func (this *Mindustry) loadMindustryVersionInfoCfg() {
     log.Printf("mindustry curr ver:%s, isFixVer:%t\n", this.mindustryVersionInfo.currVer, this.mindustryVersionInfo.isFixVer)
 	
 	for _, ver := range this.mindustryVersionInfo.verList {
-		log.Printf("tag_name:%s, published_at:%s\n", ver.tag_name, admin.published_at)
+		log.Printf("tag_name:%s, published_at:%s\n", ver.tag_name, ver.published_at)
 	}
 }
 
