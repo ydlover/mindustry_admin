@@ -66,7 +66,7 @@ type Assets struct {
 type GithubReleasesLatestApi struct {
     tag_name       string `json:"tag_name"`
     published_at   string `json:"published_at"`
-	AssetsList     []Assets `json:"assets"`
+	assetsList     []Assets `json:"assets"`
 }
 
 type MindustryVersionInfo struct {
@@ -288,7 +288,7 @@ func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string) strin
 			return ""
 		}
         ioutil.WriteFile(localFileName, body, 0644)
-        return true
+        return ""
     } else {
 		log.Printf("[ERR]Get remote info fail,remote response:remoteUrl:%s, %d!\n", remoteUrl, response.StatusCode)
 	}
@@ -297,12 +297,12 @@ func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string) strin
 
 func (this *Mindustry) downloadMindustryJar(remoteTagInfo *GithubReleasesLatestApi) string {
 
-    for _, asset := range remoteTagInfo.assets {
+    for _, asset := range remoteTagInfo.assetsList {
     	index := strings.Index(asset.name, "server")
         if !strings.HasSuffix(asset.name, ".jar") || index < 0 {
             continue
         }
-        localeFileName = remoteTagInfo.tag_name + "_server-release.jar"
+        localeFileName := remoteTagInfo.tag_name + "_server-release.jar"
         if this.downloadUrl(asset.browser_download_url, localeFileName) {
             return localeFileName
         }
@@ -357,7 +357,7 @@ func (this *Mindustry) autoUpdateMindustryVer() {
             log.Printf("[INFO]curr mindustry version is lastest,don't need update!\n")
             return
         }
-        localFileName := downloadMindustryJar(currRemoteReleasesLatest)
+        localFileName := this.downloadMindustryJar(currRemoteReleasesLatest)
         if localFileName == "" {
             log.Printf("[ERR]downloadMindustryJar fail!\n")
             return
@@ -1592,7 +1592,7 @@ func (this *Mindustry) output(line string) {
 	}
 }
 func (this *Mindustry) run() {
-    replaceJarReg, _ := regexp.Compile("\S+\.jar")
+    replaceJarReg, _ := regexp.Compile("\\S+\\.jar")
     javaParas = this.jarPath
     if this.mindustryVersionInfo.currVer != "" && this.mindustryVersionInfo.localFileName != "" {
         javaParas = replaceJarReg.ReplaceAllString(this.jarPath, this.mindustryVersionInfo.localFileName)
