@@ -134,6 +134,7 @@ type Mindustry struct {
 	isAutoRestartedForDay  bool
 	isPlayerExistForHour   bool
 	isNeedRestartForUpdate bool
+    currMindustryVer       string
     mindustryVersionInfo   *MindustryVersionInfo
 }
 
@@ -620,6 +621,7 @@ func (this *Mindustry) init() {
 	rand.Seed(time.Now().UnixNano())
 	this.name = fmt.Sprintf("mindustry-%d", rand.Int())
 	this.jarPath = "server-release.jar"
+    this.currMindustryVer = ""
 	this.mindustryVersionInfo = new(MindustryVersionInfo)
 	this.missionMap = "nuclearProductionComplex"
 	this.firstIsStart = true
@@ -1401,6 +1403,7 @@ func (this *Mindustry) procUsrCmd(uuid string, userInput string) {
 }
 func (this *Mindustry) showStatus() {
 	this.say("info.ver", _VERSION_)
+    this.say("curr mindustry version:%s, new mindustry version:%s", this.currMindustryVer, this.mindustryVersionInfo.CurrVer)
 	this.say("info.cpu_temperature", getCpuTemp())
 	this.say("info.status_show", this.fpsInfo)
 }
@@ -1604,6 +1607,7 @@ func (this *Mindustry) run() {
     javaParas := this.jarPath
     if this.mindustryVersionInfo.CurrVer != "" && this.mindustryVersionInfo.LocalFileName != "" {
         javaParas = replaceJarReg.ReplaceAllString(this.jarPath, this.mindustryVersionInfo.LocalFileName)
+        this.currMindustryVer = this.mindustryVersionInfo.CurrVer
     }
 	inPara := strings.Split(javaParas, " ")
 	para := []string{"-jar"}
