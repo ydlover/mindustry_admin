@@ -1593,7 +1593,7 @@ func (this *Mindustry) output(line string) {
 }
 func (this *Mindustry) run() {
     replaceJarReg, _ := regexp.Compile("\\S+\\.jar")
-    javaParas = this.jarPath
+    javaParas := this.jarPath
     if this.mindustryVersionInfo.currVer != "" && this.mindustryVersionInfo.localFileName != "" {
         javaParas = replaceJarReg.ReplaceAllString(this.jarPath, this.mindustryVersionInfo.localFileName)
     }
