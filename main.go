@@ -18,7 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
+    "crypto/tls"
+    
 	"github.com/kortemy/lingo"
 	"github.com/larspensjo/config"
 	"github.com/robfig/cron"
