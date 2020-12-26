@@ -260,7 +260,7 @@ func (this *Mindustry) netBan() {
 
 func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string, size int64) bool {
 
-	request, netErr := http.Get(remoteUrl)
+	resp, netErr := http.Get(remoteUrl)
 	if netErr != nil {
 		log.Printf("[ERR]Get remote info fail, remoteUrl:%s, netError:%v!\n", remoteUrl, netErr)
 		return false
@@ -273,7 +273,7 @@ func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string, size 
         return false
     }
     defer out.Close()
-    copySize, err = io.Copy(out, resp.Body)
+    copySize, err := io.Copy(out, resp.Body)
     if err != nil {
 		log.Printf("[ERR]Get remote info io.Copy fail, remoteUrl:%s, err:%v!\n", remoteUrl, err)
         return false
