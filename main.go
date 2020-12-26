@@ -326,9 +326,10 @@ func (this *Mindustry) autoUpdateMindustryVer() {
     }
 	client := &http.Client{
 		Transport: &http.Transport{
+            TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			Dial: func(netw, addr string) (net.Conn, error) {
-				deadline := time.Now().Add(5 * time.Second)
-				c, err := net.DialTimeout(netw, addr, time.Second*5)
+				deadline := time.Now().Add(10 * time.Second)
+				c, err := net.DialTimeout(netw, addr, time.Second*10)
 				if err != nil {
 					return nil, err
 				}
