@@ -58,22 +58,22 @@ type BanCfg struct {
 }
 
 type Assets struct {
-	name                 string `json:"name"`
-	updated_at           string `json:"updated_at"`
-	browser_download_url string `json:"browser_download_url"`
+	Name                 string `json:"name"`
+	UpdatedAt            string `json:"updated_at"`
+	BrowserDownloadUrl   string `json:"browser_download_url"`
 }
 
 type GithubReleasesLatestApi struct {
-    tag_name       string `json:"tag_name"`
-    published_at   string `json:"published_at"`
-	assetsList     []Assets `json:"assets"`
+    TagName       string `json:"tag_name"`
+    PublishedAt   string `json:"published_at"`
+	AssetsList     []Assets `json:"assets"`
 }
 
 type MindustryVersionInfo struct {
-    currVer       string `json:"curr_ver"`
-    localFileName string `json:"local_file_name"`
-    isFixVer      bool   `json:"is_fix_ver"`
-    verList       []GithubReleasesLatestApi `json:"ver_list"`
+    CurrVer       string `json:"curr_ver"`
+    LocalFileName string `json:"local_file_name"`
+    IsFixVer      bool   `json:"is_fix_ver"`
+    VerList       []GithubReleasesLatestApi `json:"ver_list"`
 }
 
 type User struct {
@@ -297,16 +297,16 @@ func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string) bool 
 
 func (this *Mindustry) downloadMindustryJar(remoteTagInfo *GithubReleasesLatestApi) string {
 
-    for _, asset := range remoteTagInfo.assetsList {
-    	index := strings.Index(asset.name, "server")
-        if !strings.HasSuffix(asset.name, ".jar") || index < 0 {
+    for _, asset := range remoteTagInfo.AssetsList {
+    	index := strings.Index(asset.Name, "server")
+        if !strings.HasSuffix(asset.Name, ".jar") || index < 0 {
             continue
         }
-        localeFileName := remoteTagInfo.tag_name + "_server-release.jar"
-        if this.downloadUrl(asset.browser_download_url, localeFileName) {
+        localeFileName := remoteTagInfo.TagName + "_server-release.jar"
+        if this.downloadUrl(asset.BrowserDownloadUrl, localeFileName) {
             return localeFileName
         }
-        log.Printf("[ERR]download remote jar fail,browser_download_url:%s, localeFileName:%s!\n", asset.browser_download_url, localeFileName)
+        log.Printf("[ERR]download remote jar fail,BrowserDownloadUrl:%s, localeFileName:%s!\n", asset.BrowserDownloadUrl, localeFileName)
     }
     log.Printf("[ERR]not found remote server jar!\n")
     return ""
@@ -314,8 +314,8 @@ func (this *Mindustry) downloadMindustryJar(remoteTagInfo *GithubReleasesLatestA
 
 func (this *Mindustry) autoUpdateMindustryVer() {
     log.Printf("[INFO]update mindustry check.\n")
-    if this.mindustryVersionInfo.isFixVer {
-		log.Printf("[INFO]Not need update mindustry,isFixVer is true!\n")
+    if this.mindustryVersionInfo.IsFixVer {
+		log.Printf("[INFO]Not need update mindustry,IsFixVer is true!\n")
 		return
     }
 	client := &http.Client{
@@ -353,7 +353,7 @@ func (this *Mindustry) autoUpdateMindustryVer() {
 			log.Printf("[ERR]Get remote mindustry jar info Unmarshal fail!\n")
 			return
 		}
-        if currRemoteReleasesLatest.tag_name == this.mindustryVersionInfo.currVer {
+        if currRemoteReleasesLatest.TagName == this.mindustryVersionInfo.CurrVer {
             log.Printf("[INFO]curr mindustry version is lastest,don't need update!\n")
             return
         }
@@ -362,16 +362,16 @@ func (this *Mindustry) autoUpdateMindustryVer() {
             log.Printf("[ERR]downloadMindustryJar fail!\n")
             return
         }
-        this.mindustryVersionInfo.currVer = currRemoteReleasesLatest.tag_name
-        this.mindustryVersionInfo.localFileName = localFileName
-        if len(this.mindustryVersionInfo.verList) < 10 {
-            this.mindustryVersionInfo.verList = append(this.mindustryVersionInfo.verList, currRemoteReleasesLatest)
+        this.mindustryVersionInfo.CurrVer = currRemoteReleasesLatest.TagName
+        this.mindustryVersionInfo.LocalFileName = localFileName
+        if len(this.mindustryVersionInfo.VerList) < 10 {
+            this.mindustryVersionInfo.VerList = append(this.mindustryVersionInfo.VerList, currRemoteReleasesLatest)
         } else {
-            remoteLastestTime, _ := time.Parse(time.RFC3339, currRemoteReleasesLatest.published_at)
-            for index, ver := range this.mindustryVersionInfo.verList {
-                t, _ := time.Parse(time.RFC3339, ver.published_at)
+            remoteLastestTime, _ := time.Parse(time.RFC3339, currRemoteReleasesLatest.PublishedAt)
+            for index, ver := range this.mindustryVersionInfo.VerList {
+                t, _ := time.Parse(time.RFC3339, ver.PublishedAt)
                 if remoteLastestTime.After(t) {
-                    this.mindustryVersionInfo.verList[index] = currRemoteReleasesLatest
+                    this.mindustryVersionInfo.VerList[index] = currRemoteReleasesLatest
                 }
             }
         }
@@ -562,9 +562,9 @@ func (this *Mindustry) loadConfig() {
 }
 
 func (this *Mindustry) loadMindustryVersionInfoCfg() {
-    this.mindustryVersionInfo.currVer = ""
-    this.mindustryVersionInfo.localFileName = ""
-    this.mindustryVersionInfo.isFixVer = false
+    this.mindustryVersionInfo.CurrVer = ""
+    this.mindustryVersionInfo.LocalFileName = ""
+    this.mindustryVersionInfo.IsFixVer = false
 	data, err := ioutil.ReadFile("mindustryVersionCfg.json")
 	if err != nil {
 		log.Printf("[INFO]Not found mindustryVersionCfg.json, use jarPath in config.ini!\n")
@@ -576,10 +576,10 @@ func (this *Mindustry) loadMindustryVersionInfoCfg() {
 		return
 	}
 
-    log.Printf("mindustry curr ver:%s, isFixVer:%t\n", this.mindustryVersionInfo.currVer, this.mindustryVersionInfo.isFixVer)
+    log.Printf("mindustry curr ver:%s, IsFixVer:%t\n", this.mindustryVersionInfo.CurrVer, this.mindustryVersionInfo.IsFixVer)
 	
-	for _, ver := range this.mindustryVersionInfo.verList {
-		log.Printf("tag_name:%s, published_at:%s\n", ver.tag_name, ver.published_at)
+	for _, ver := range this.mindustryVersionInfo.VerList {
+		log.Printf("TagName:%s, PublishedAt:%s\n", ver.TagName, ver.PublishedAt)
 	}
 }
 
@@ -1592,10 +1592,11 @@ func (this *Mindustry) output(line string) {
 	}
 }
 func (this *Mindustry) run() {
+    this.autoUpdateMindustryVer()
     replaceJarReg, _ := regexp.Compile("\\S+\\.jar")
     javaParas := this.jarPath
-    if this.mindustryVersionInfo.currVer != "" && this.mindustryVersionInfo.localFileName != "" {
-        javaParas = replaceJarReg.ReplaceAllString(this.jarPath, this.mindustryVersionInfo.localFileName)
+    if this.mindustryVersionInfo.CurrVer != "" && this.mindustryVersionInfo.LocalFileName != "" {
+        javaParas = replaceJarReg.ReplaceAllString(this.jarPath, this.mindustryVersionInfo.LocalFileName)
     }
 	inPara := strings.Split(javaParas, " ")
 	para := []string{"-jar"}
