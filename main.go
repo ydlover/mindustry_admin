@@ -2,9 +2,13 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/kortemy/lingo"
+	"github.com/larspensjo/config"
+	"github.com/robfig/cron"
 	"io"
 	"io/ioutil"
 	"log"
@@ -15,14 +19,10 @@ import (
 	"os/exec"
 	"os/signal"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
-	"crypto/tls"
-
-	"github.com/kortemy/lingo"
-	"github.com/larspensjo/config"
-	"github.com/robfig/cron"
 )
 
 var _VERSION_ = "1.0"
@@ -59,23 +59,23 @@ type BanCfg struct {
 }
 
 type Assets struct {
-	Name                 string `json:"name"`
-	UpdatedAt            string `json:"updated_at"`
-    Size                 int64  `json:"size"`
-	BrowserDownloadUrl   string `json:"browser_download_url"`
+	Name               string `json:"name"`
+	UpdatedAt          string `json:"updated_at"`
+	Size               int64  `json:"size"`
+	BrowserDownloadUrl string `json:"browser_download_url"`
 }
 
 type GithubReleasesLatestApi struct {
-    TagName       string `json:"tag_name"`
-    PublishedAt   string `json:"published_at"`
-	AssetsList     []Assets `json:"assets"`
+	TagName     string   `json:"tag_name"`
+	PublishedAt string   `json:"published_at"`
+	AssetsList  []Assets `json:"assets"`
 }
 
 type MindustryVersionInfo struct {
-    CurrVer       string `json:"curr_ver"`
-    LocalFileName string `json:"local_file_name"`
-    IsFixVer      bool   `json:"is_fix_ver"`
-    VerList       []GithubReleasesLatestApi `json:"ver_list"`
+	CurrVer       string                    `json:"curr_ver"`
+	LocalFileName string                    `json:"local_file_name"`
+	IsFixVer      bool                      `json:"is_fix_ver"`
+	VerList       []GithubReleasesLatestApi `json:"ver_list"`
 }
 
 type User struct {
@@ -133,9 +133,10 @@ type Mindustry struct {
 	cmdWaitTimer           *time.Timer
 	isAutoRestartedForDay  bool
 	isPlayerExistForHour   bool
+	isPlayerExistForTenMin bool
 	isNeedRestartForUpdate bool
-    currMindustryVer       string
-    mindustryVersionInfo   *MindustryVersionInfo
+	currMindustryVer       string
+	mindustryVersionInfo   *MindustryVersionInfo
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -261,70 +262,70 @@ func (this *Mindustry) netBan() {
 }
 
 func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string, size int64) bool {
-    tr := &http.Transport{
-        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-        Dial: (&net.Dialer{
-                Timeout:   30 * time.Second,
-                KeepAlive: 30 * time.Second,
-        }).Dial,
-        TLSHandshakeTimeout:   10 * time.Second,
-        ResponseHeaderTimeout: 10 * time.Second,
-    }
- 
-    client := &http.Client{Transport: tr}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		Dial: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+	}
+
+	client := &http.Client{Transport: tr}
 
 	resp, netErr := client.Get(remoteUrl)
 	if netErr != nil {
 		log.Printf("[ERR]Get remote info fail, remoteUrl:%s, netError:%v!\n", remoteUrl, netErr)
 		return false
 	}
-    defer resp.Body.Close()
+	defer resp.Body.Close()
 
-    out, err := os.Create(localFileName)
-    if err != nil {
-        log.Printf("[ERR]Get remote info os.Create fail, remoteUrl:%s, err:%v!\n", remoteUrl, err)
-        return false
-    }
-    defer out.Close()
-    copySize, err := io.Copy(out, resp.Body)
-    if err != nil {
+	out, err := os.Create(localFileName)
+	if err != nil {
+		log.Printf("[ERR]Get remote info os.Create fail, remoteUrl:%s, err:%v!\n", remoteUrl, err)
+		return false
+	}
+	defer out.Close()
+	copySize, err := io.Copy(out, resp.Body)
+	if err != nil {
 		log.Printf("[ERR]Get remote info io.Copy fail, remoteUrl:%s, err:%v!\n", remoteUrl, err)
-        return false
-    }
-    if copySize != size {
+		return false
+	}
+	if copySize != size {
 		log.Printf("[ERR]Get remote info io.Copy size invalid, remoteUrl:%s, copySize:%d, expSize:%d!\n", remoteUrl, copySize, size)
-        return false
-    }
-    
-    return true
+		return false
+	}
+
+	return true
 }
 
 func (this *Mindustry) downloadMindustryJar(remoteTagInfo *GithubReleasesLatestApi) string {
 
-    for _, asset := range remoteTagInfo.AssetsList {
-    	index := strings.Index(asset.Name, "server")
-        if !strings.HasSuffix(asset.Name, ".jar") || index < 0 {
-            continue
-        }
-        localeFileName := remoteTagInfo.TagName + "_server-release.jar"
-        if this.downloadUrl(asset.BrowserDownloadUrl, localeFileName, asset.Size) {
-            return localeFileName
-        }
-        log.Printf("[ERR]download remote jar fail,BrowserDownloadUrl:%s, localeFileName:%s!\n", asset.BrowserDownloadUrl, localeFileName)
-    }
-    log.Printf("[ERR]not found remote server jar!\n")
-    return ""
+	for _, asset := range remoteTagInfo.AssetsList {
+		index := strings.Index(asset.Name, "server")
+		if !strings.HasSuffix(asset.Name, ".jar") || index < 0 {
+			continue
+		}
+		localeFileName := remoteTagInfo.TagName + "_server-release.jar"
+		if this.downloadUrl(asset.BrowserDownloadUrl, localeFileName, asset.Size) {
+			return localeFileName
+		}
+		log.Printf("[ERR]download remote jar fail,BrowserDownloadUrl:%s, localeFileName:%s!\n", asset.BrowserDownloadUrl, localeFileName)
+	}
+	log.Printf("[ERR]not found remote server jar!\n")
+	return ""
 }
 
 func (this *Mindustry) autoUpdateMindustryVer() {
-    log.Printf("[INFO]autoUpdateMindustryVer check.\n")
-    if this.mindustryVersionInfo.IsFixVer {
+	log.Printf("[INFO]autoUpdateMindustryVer check.\n")
+	if this.mindustryVersionInfo.IsFixVer {
 		log.Printf("[INFO]Not need update mindustry,IsFixVer is true!\n")
 		return
-    }
+	}
 	client := &http.Client{
 		Transport: &http.Transport{
-            TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			Dial: func(netw, addr string) (net.Conn, error) {
 				deadline := time.Now().Add(10 * time.Second)
 				c, err := net.DialTimeout(netw, addr, time.Second*10)
@@ -358,35 +359,35 @@ func (this *Mindustry) autoUpdateMindustryVer() {
 			log.Printf("[ERR]Get remote mindustry jar info Unmarshal fail!\n")
 			return
 		}
-        if currRemoteReleasesLatest.TagName == "" {
-            log.Printf("[ERR]rempte mindustry version not found, don't need update!\n")
-            return
-        }
-        if currRemoteReleasesLatest.TagName == this.mindustryVersionInfo.CurrVer {
-            log.Printf("[INFO]curr mindustry version is lastest, don't need update!\n")
-            return
-        }
-        localFileName := this.downloadMindustryJar(&currRemoteReleasesLatest)
-        if localFileName == "" {
-            log.Printf("[ERR]downloadMindustryJar fail!\n")
-            return
-        }
-        this.mindustryVersionInfo.CurrVer = currRemoteReleasesLatest.TagName
-        this.mindustryVersionInfo.LocalFileName = localFileName
-        if len(this.mindustryVersionInfo.VerList) < 10 {
-            this.mindustryVersionInfo.VerList = append(this.mindustryVersionInfo.VerList, currRemoteReleasesLatest)
-        } else {
-            remoteLastestTime, _ := time.Parse(time.RFC3339, currRemoteReleasesLatest.PublishedAt)
-            for index, ver := range this.mindustryVersionInfo.VerList {
-                t, _ := time.Parse(time.RFC3339, ver.PublishedAt)
-                if remoteLastestTime.After(t) {
-                    this.mindustryVersionInfo.VerList[index] = currRemoteReleasesLatest
-                }
-            }
-        }
-        this.isNeedRestartForUpdate = true
-        log.Printf("[INFO]downloadMindustryJar succ,wait restart server!\n")
-        this.writeMindustryVersionInfoCfg()
+		if currRemoteReleasesLatest.TagName == "" {
+			log.Printf("[ERR]rempte mindustry version not found, don't need update!\n")
+			return
+		}
+		if currRemoteReleasesLatest.TagName == this.mindustryVersionInfo.CurrVer {
+			log.Printf("[INFO]curr mindustry version is lastest, don't need update!\n")
+			return
+		}
+		localFileName := this.downloadMindustryJar(&currRemoteReleasesLatest)
+		if localFileName == "" {
+			log.Printf("[ERR]downloadMindustryJar fail!\n")
+			return
+		}
+		this.mindustryVersionInfo.CurrVer = currRemoteReleasesLatest.TagName
+		this.mindustryVersionInfo.LocalFileName = localFileName
+		if len(this.mindustryVersionInfo.VerList) < 10 {
+			this.mindustryVersionInfo.VerList = append(this.mindustryVersionInfo.VerList, currRemoteReleasesLatest)
+		} else {
+			remoteLastestTime, _ := time.Parse(time.RFC3339, currRemoteReleasesLatest.PublishedAt)
+			for index, ver := range this.mindustryVersionInfo.VerList {
+				t, _ := time.Parse(time.RFC3339, ver.PublishedAt)
+				if remoteLastestTime.After(t) {
+					this.mindustryVersionInfo.VerList[index] = currRemoteReleasesLatest
+				}
+			}
+		}
+		this.isNeedRestartForUpdate = true
+		log.Printf("[INFO]downloadMindustryJar succ,wait restart server!\n")
+		this.writeMindustryVersionInfoCfg()
 	} else {
 		log.Printf("[ERR]Get remote mindustry version info fail,remote response:%d!\n", response.StatusCode)
 	}
@@ -571,9 +572,9 @@ func (this *Mindustry) loadConfig() {
 }
 
 func (this *Mindustry) loadMindustryVersionInfoCfg() {
-    this.mindustryVersionInfo.CurrVer = ""
-    this.mindustryVersionInfo.LocalFileName = ""
-    this.mindustryVersionInfo.IsFixVer = false
+	this.mindustryVersionInfo.CurrVer = ""
+	this.mindustryVersionInfo.LocalFileName = ""
+	this.mindustryVersionInfo.IsFixVer = false
 	data, err := ioutil.ReadFile("mindustryVersionCfg.json")
 	if err != nil {
 		log.Printf("[INFO]Not found mindustryVersionCfg.json, use jarPath in config.ini!\n")
@@ -585,8 +586,8 @@ func (this *Mindustry) loadMindustryVersionInfoCfg() {
 		return
 	}
 
-    log.Printf("mindustry curr ver:%s, IsFixVer:%t\n", this.mindustryVersionInfo.CurrVer, this.mindustryVersionInfo.IsFixVer)
-	
+	log.Printf("mindustry curr ver:%s, IsFixVer:%t\n", this.mindustryVersionInfo.CurrVer, this.mindustryVersionInfo.IsFixVer)
+
 	for _, ver := range this.mindustryVersionInfo.VerList {
 		log.Printf("TagName:%s, PublishedAt:%s\n", ver.TagName, ver.PublishedAt)
 	}
@@ -610,8 +611,9 @@ func (this *Mindustry) initStatus() {
 	this.users = make(map[string]User)
 	this.votetickUsers = make(map[string]int)
 	this.isPlayerExistForHour = false
+	this.isPlayerExistForTenMin = false
 	this.isAutoRestartedForDay = true
-    this.isNeedRestartForUpdate = false
+	this.isNeedRestartForUpdate = false
 }
 func (this *Mindustry) init() {
 	this.serverOutR, _ = regexp.Compile(".*(\\[INFO\\]|\\[ERR\\])(.*)")
@@ -621,7 +623,7 @@ func (this *Mindustry) init() {
 	rand.Seed(time.Now().UnixNano())
 	this.name = fmt.Sprintf("mindustry-%d", rand.Int())
 	this.jarPath = "server-release.jar"
-    this.currMindustryVer = ""
+	this.currMindustryVer = ""
 	this.mindustryVersionInfo = new(MindustryVersionInfo)
 	this.missionMap = "nuclearProductionComplex"
 	this.firstIsStart = true
@@ -635,7 +637,7 @@ func (this *Mindustry) init() {
 	this.killCh = make(chan os.Signal)
 	this.loadConfig()
 	this.loadAdminConfig()
-    this.loadMindustryVersionInfoCfg()
+	this.loadMindustryVersionInfoCfg()
 	this.userCmdProcHandles["admin"] = this.proc_admin
 	this.userCmdProcHandles["unadmin"] = this.proc_unadmin
 	this.userCmdProcHandles["directCmd"] = this.proc_directCmd
@@ -759,11 +761,10 @@ func (this *Mindustry) hourTask() {
 	} else {
 		this.isAutoRestartedForDay = false
 	}
-    this.autoUpdateMindustryVer()
-	if (isAutoRestartForDay || this.isNeedRestartForUpdate) && !this.isAutoRestartedForDay && !this.isPlayerExistForHour {
+	this.autoUpdateMindustryVer()
+	if isAutoRestartForDay && !this.isAutoRestartedForDay && !this.isPlayerExistForHour {
 		log.Printf("game is auto restar for not player!\n")
 		this.isAutoRestartedForDay = true
-        this.isNeedRestartForUpdate = false
 		this.execCmd("exit")
 		return
 	}
@@ -789,6 +790,9 @@ func (this *Mindustry) tenMinTask() {
 	} else if !this.serverIsRun {
 		log.Printf("game is not running,exit.\n")
 		this.execCmd("exit")
+	} else if this.isNeedRestartForUpdate && !this.isPlayerExistForTenMin {
+		log.Printf("game is need update, exit.\n")
+		this.execCmd("exit")
 	} else {
 		this.say(this.notice)
 		if this.currProcCmd != "" {
@@ -799,6 +803,7 @@ func (this *Mindustry) tenMinTask() {
 			this.proc_status("Server", "status", false)
 		}
 	}
+	this.isPlayerExistForTenMin = false
 }
 func (this *Mindustry) addUser(name string, uuid string) {
 	if _, ok := this.users[uuid]; ok {
@@ -905,6 +910,7 @@ func (this *Mindustry) onlineUser(name string, uuid string) {
 		return
 	}
 	this.isPlayerExistForHour = true
+	this.isPlayerExistForTenMin = true
 	this.addUser(name, uuid)
 	role := this.getUserRole(name, uuid)
 	if role == SUPER_ADMIN {
@@ -1196,11 +1202,16 @@ func (this *Mindustry) proc_help(uuid string, userInput string, isOnlyCheck bool
 }
 
 var tempOsPath = "/sys/class/thermal/thermal_zone0/temp"
+var tempOsPath_linux_amd64 = "/sys/class/thermal/thermal_zone1/temp"
 
 func getCpuTemp() float64 {
-	raw, err := ioutil.ReadFile(tempOsPath)
+	tempFile := tempOsPath
+	if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
+		tempFile = tempOsPath_linux_amd64
+	}
+	raw, err := ioutil.ReadFile(tempFile)
 	if err != nil {
-		//log.Printf("Failed to read temperature from %q: %v", tempOsPath, err)
+		//log.Printf("Failed to read temperature from %q: %v", tempFile, err)
 		return 0.0
 	}
 
@@ -1403,7 +1414,7 @@ func (this *Mindustry) procUsrCmd(uuid string, userInput string) {
 }
 func (this *Mindustry) showStatus() {
 	this.say("info.ver", _VERSION_)
-    this.say("curr mindustry version:%s, new mindustry version:%s", this.currMindustryVer, this.mindustryVersionInfo.CurrVer)
+	this.say("curr mindustry version:%s, new mindustry version:%s", this.currMindustryVer, this.mindustryVersionInfo.CurrVer)
 	this.say("info.cpu_temperature", getCpuTemp())
 	this.say("info.status_show", this.fpsInfo)
 }
@@ -1447,6 +1458,9 @@ func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 				this.playCnt = count
 				log.Printf("curr playCnt:%d\n", this.playCnt)
 			}
+			this.isPlayerExistForHour = this.playCnt > 0
+			this.isPlayerExistForTenMin = this.playCnt > 0
+
 			if this.isInGameCmd {
 				this.showStatus()
 			}
@@ -1603,28 +1617,28 @@ func (this *Mindustry) output(line string) {
 	}
 }
 func (this *Mindustry) run() {
-    replaceJarReg, _ := regexp.Compile("\\S+\\.jar")
-    javaParas := this.jarPath
-    if this.mindustryVersionInfo.CurrVer != "" && this.mindustryVersionInfo.LocalFileName != "" {
-        javaParas = replaceJarReg.ReplaceAllString(this.jarPath, this.mindustryVersionInfo.LocalFileName)
-        this.currMindustryVer = this.mindustryVersionInfo.CurrVer
-    }
-	inPara := strings.Split(javaParas, " ")
-	para := []string{"-jar"}
-	index := strings.Index(javaParas, "-jar")
-	if index < 0 {
-		para = append(para, inPara...)
-	} else {
-		para = inPara
-	}
 	for {
-		this.execCommand("java", para)
-		if this.serverIsStart {
-			log.Printf("server crash,wait(10s) reboot!\n")
-			time.Sleep(time.Duration(10) * time.Second)
-		} else {
-			break
-		}
+            replaceJarReg, _ := regexp.Compile("\\S+\\.jar")
+	    javaParas := this.jarPath
+	    if this.mindustryVersionInfo.CurrVer != "" && this.mindustryVersionInfo.LocalFileName != "" {
+		javaParas = replaceJarReg.ReplaceAllString(this.jarPath, this.mindustryVersionInfo.LocalFileName)
+		this.currMindustryVer = this.mindustryVersionInfo.CurrVer
+	    }
+	    inPara := strings.Split(javaParas, " ")
+	    para := []string{"-jar"}
+	    index := strings.Index(javaParas, "-jar")
+	    if index < 0 {
+		para = append(para, inPara...)
+	    } else {
+		para = inPara
+	    }   
+            this.execCommand("java", para)
+            if this.serverIsStart {
+		log.Printf("server crash,wait(10s) reboot!\n")
+		time.Sleep(time.Duration(10) * time.Second)
+	    } else {
+		break
+            }
 	}
 }
 func (this *Mindustry) isPermitMapModify() bool {
