@@ -1066,7 +1066,6 @@ func (this *Mindustry) proc_host(uuid string, userInput string, isOnlyCheck bool
 	if isOnlyCheck {
 		return true
 	}
-	this.say("info.server_restart")
 	if inputMode == "mission" {
 		this.missionMap = mapName
 		this.serverIsRun = false
@@ -1075,12 +1074,14 @@ func (this *Mindustry) proc_host(uuid string, userInput string, isOnlyCheck bool
 	}
 	this.execCmd("reloadmaps")
 	time.Sleep(time.Duration(5) * time.Second)
-	this.execCmd("stop")
-	time.Sleep(time.Duration(5) * time.Second)
 	mapName = strings.Replace(mapName, " ", "_", -1)
 	if inputMode == "" {
-		this.execCmd("host " + mapName)
+		this.execCmd("nextmap " + mapName)
+		this.execCmd("gameover")
 	} else {
+		this.say("info.server_restart")
+		this.execCmd("stop")
+		time.Sleep(time.Duration(5) * time.Second)
 		this.execCmd("host " + mapName + " " + inputMode)
 	}
 	return true
@@ -1618,27 +1619,27 @@ func (this *Mindustry) output(line string) {
 }
 func (this *Mindustry) run() {
 	for {
-            replaceJarReg, _ := regexp.Compile("\\S+\\.jar")
-	    javaParas := this.jarPath
-	    if this.mindustryVersionInfo.CurrVer != "" && this.mindustryVersionInfo.LocalFileName != "" {
-		javaParas = replaceJarReg.ReplaceAllString(this.jarPath, this.mindustryVersionInfo.LocalFileName)
-		this.currMindustryVer = this.mindustryVersionInfo.CurrVer
-	    }
-	    inPara := strings.Split(javaParas, " ")
-	    para := []string{"-jar"}
-	    index := strings.Index(javaParas, "-jar")
-	    if index < 0 {
-		para = append(para, inPara...)
-	    } else {
-		para = inPara
-	    }   
-            this.execCommand("java", para)
-            if this.serverIsStart {
-		log.Printf("server crash,wait(10s) reboot!\n")
-		time.Sleep(time.Duration(10) * time.Second)
-	    } else {
-		break
-            }
+		replaceJarReg, _ := regexp.Compile("\\S+\\.jar")
+		javaParas := this.jarPath
+		if this.mindustryVersionInfo.CurrVer != "" && this.mindustryVersionInfo.LocalFileName != "" {
+			javaParas = replaceJarReg.ReplaceAllString(this.jarPath, this.mindustryVersionInfo.LocalFileName)
+			this.currMindustryVer = this.mindustryVersionInfo.CurrVer
+		}
+		inPara := strings.Split(javaParas, " ")
+		para := []string{"-jar"}
+		index := strings.Index(javaParas, "-jar")
+		if index < 0 {
+			para = append(para, inPara...)
+		} else {
+			para = inPara
+		}
+		this.execCommand("java", para)
+		if this.serverIsStart {
+			log.Printf("server crash,wait(10s) reboot!\n")
+			time.Sleep(time.Duration(10) * time.Second)
+		} else {
+			break
+		}
 	}
 }
 func (this *Mindustry) isPermitMapModify() bool {
