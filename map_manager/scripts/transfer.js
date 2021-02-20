@@ -25,7 +25,7 @@ $(function () {
 			return;
 		}
 		var fileName = $(this).siblings(':first').text();
-		var deleteUrl = "files/" + encodeURI(fileName);
+		var deleteUrl = "maps/" + encodeURI(fileName);
 		var fileInfoContainer = $(this).parent();
 		fileInfoContainer.css({ 'color': '#fff', 'background-color': '#cb4638' });
 		fileInfoContainer.find('.trash').removeClass('trash').unbind();
@@ -50,13 +50,13 @@ $(function () {
 
 	function downloadBook() {
 		var fileName = $(this).siblings(':first').text();
-		var url = "files/" + encodeURI(fileName);
+		var url = "maps/" + encodeURI(fileName);
 		window.location = url;
 	}
 
 	function loadFileList() {
 		var now = new Date();
-		var url = "files?";
+		var url = "maps?";
 		$.getJSON(url + now.getTime(), function (data) {
 			files = data;
 			fillFilesContainer();
@@ -133,7 +133,7 @@ $(function () {
 		var row = $("#right .file [filename='" + escape(fileName) + "']").parent();
 
 		$.ajaxFileUpload({
-			url: 'files/',
+			url: 'maps/',
 			secureuri: false,
 			fileElementId: eleFileId,
 			dataType: 'text',
@@ -318,7 +318,7 @@ $(function () {
 	function getHtml5Uploader() {
 		if (!html5Uploader) {
 			html5Uploader = new bitcandies.FileUploader({
-				url: 'files/',
+				url: 'maps/',
 				maxconnections: 1,
 				fieldname: 'newfile',
 				enqueued: function (item) {
