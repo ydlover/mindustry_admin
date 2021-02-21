@@ -93,15 +93,17 @@ func StartFileUpServer(mindustryServer *Mindustry) {
 
 func authRequest(w http.ResponseWriter, username string, sessionId string) bool {
 	fmt.Printf("auth:username=%s,sessionId=%s", username, sessionId)
-	var result Rslt
-	result.Result = "user not login!"
-	output, err1 := json.MarshalIndent(&result, "", "\t\t")
-	if err1 != nil {
-		fmt.Printf("json gen fail")
-		return false
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(output)
+	/*
+		var result Rslt
+		result.Result = "user not login!"
+		output, err1 := json.MarshalIndent(&result, "", "\t\t")
+		if err1 != nil {
+			fmt.Printf("json gen fail")
+			return false
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(output)
+	*/
 	return true
 }
 
