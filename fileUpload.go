@@ -45,6 +45,10 @@ type LoginRslt struct {
 	Session string `json:"session"`
 }
 
+type Rslt struct {
+	Result string `json:"result"`
+}
+
 func init() {
 	for _, filePath := range url2path {
 		err := initFilePath(filePath)
@@ -64,6 +68,7 @@ func StartFileUpServer(mindustryServer *Mindustry) {
 	mux.Handle("/login", http.HandlerFunc(handleLoginRequest))
 	mux.Handle("/sign", http.HandlerFunc(handleSignRequest))
 	mux.Handle("/modifyPasswd", http.HandlerFunc(handleModifyPasswdRequest))
+	mux.Handle("/resetUuid", http.HandlerFunc(handleResetUuidRequest))
 	mux.Handle("/admins", http.HandlerFunc(handleAdminsRequest))
 	mux.Handle("/blacklist", http.HandlerFunc(handleBlackListRequest))
 
@@ -88,6 +93,8 @@ func StartFileUpServer(mindustryServer *Mindustry) {
 func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
 	fmt.Println("handleLoginRequest url:" + r.URL.Path + ", method:" + r.Method)
+	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
+	fmt.Println("request post:" + string(con))
 
 	switch r.Method {
 	case "POST":
@@ -110,9 +117,21 @@ func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 func handleSignRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
 	fmt.Println("handleSignRequest url:" + r.URL.Path + ", method:" + r.Method)
+	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
+	fmt.Println("request post:" + string(con))
 
 	switch r.Method {
 	case "POST":
+		var result Rslt
+		result.Result = "succ"
+		output, err1 := json.MarshalIndent(&result, "", "\t\t")
+		if err1 != nil {
+			err = err1
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(output)
+		return
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -120,12 +139,49 @@ func handleSignRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
-func handleModifyPasswdRequest(w http.ResponseWriter, r *http.Request) {
+func handleResetUuidRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
-	fmt.Println("handleModifyPasswdRequest url:" + r.URL.Path + ", method:" + r.Method)
+	fmt.Println("handleResetUuidRequest url:" + r.URL.Path + ", method:" + r.Method)
+	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
+	fmt.Println("request post:" + string(con))
 
 	switch r.Method {
 	case "POST":
+		var result Rslt
+		result.Result = "succ"
+		output, err1 := json.MarshalIndent(&result, "", "\t\t")
+		if err1 != nil {
+			err = err1
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(output)
+		return
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+func handleModifyPasswdRequest(w http.ResponseWriter, r *http.Request) {
+	var err error
+	fmt.Println("handleModifyPasswdRequest url:" + r.URL.Path + ", method:" + r.Method)
+	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
+	fmt.Println("request post:" + string(con))
+
+	switch r.Method {
+	case "POST":
+		var result Rslt
+		result.Result = "succ"
+		output, err1 := json.MarshalIndent(&result, "", "\t\t")
+		if err1 != nil {
+			err = err1
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(output)
+		return
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -136,6 +192,8 @@ func handleModifyPasswdRequest(w http.ResponseWriter, r *http.Request) {
 func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
 	fmt.Println("handleBlackListRequest url:" + r.URL.Path + ", method:" + r.Method)
+	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
+	fmt.Println("request post:" + string(con))
 
 	switch r.Method {
 	case "GET":
@@ -169,6 +227,8 @@ func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
 func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
 	fmt.Println("handleAdminsRequest url:" + r.URL.Path)
+	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
+	fmt.Println("request post:" + string(con))
 
 	switch r.Method {
 	case "GET":
@@ -215,7 +275,9 @@ func getDirFilesCnt(requestUrl string) int {
 }
 func handleFilesRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
-	fmt.Println("request url:" + r.URL.Path)
+	fmt.Println("request files url:" + r.URL.Path)
+	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
+	fmt.Println("request post:" + string(con))
 	requestUrl := getRequestFileUrl(r)
 	if requestUrl == "" {
 		fmt.Printf("invalid url!\n")
