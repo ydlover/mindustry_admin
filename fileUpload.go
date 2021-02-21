@@ -90,6 +90,21 @@ func StartFileUpServer(mindustryServer *Mindustry) {
 	m_mindustryServer = mindustryServer
 	server.ListenAndServe()
 }
+
+func authRequest(w http.ResponseWriter, username string, sessionId string) bool {
+	fmt.Printf("auth:username=%s,sessionId=%s", username, sessionId)
+	var result Rslt
+	result.Result = "user not login!"
+	output, err1 := json.MarshalIndent(&result, "", "\t\t")
+	if err1 != nil {
+		fmt.Printf("json gen fail")
+		return false
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(output)
+	return true
+}
+
 func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
 	fmt.Println("handleLoginRequest url:" + r.URL.Path + ", method:" + r.Method)
@@ -146,7 +161,11 @@ func handleResetUuidRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("request post:" + string(con))
 
 	switch r.Method {
-	case "POST":
+	case "GET":
+		query := r.URL.Query()
+		if !authRequest(w, query.Get("username"), query.Get("sessionid")) {
+			return
+		}
 		var result Rslt
 		result.Result = "succ"
 		output, err1 := json.MarshalIndent(&result, "", "\t\t")
@@ -169,9 +188,12 @@ func handleModifyPasswdRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("handleModifyPasswdRequest url:" + r.URL.Path + ", method:" + r.Method)
 	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
 	fmt.Println("request post:" + string(con))
-
 	switch r.Method {
 	case "POST":
+		r.ParseForm()
+		if !authRequest(w, r.Form.Get("username"), r.Form.Get("sessionid")) {
+			return
+		}
 		var result Rslt
 		result.Result = "succ"
 		output, err1 := json.MarshalIndent(&result, "", "\t\t")
@@ -197,6 +219,10 @@ func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "GET":
+		query := r.URL.Query()
+		if !authRequest(w, query.Get("username"), query.Get("sessionid")) {
+			return
+		}
 		blackList := make([]BlackList, 3)
 		blackList[0].GameName = "user1"
 		blackList[0].Uuid = "000123123123"
@@ -232,6 +258,10 @@ func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "GET":
+		query := r.URL.Query()
+		if !authRequest(w, query.Get("username"), query.Get("sessionid")) {
+			return
+		}
 		adminsList := make([]AdminsList, 3)
 		adminsList[0].UserName = "user1"
 		adminsList[0].GameName = "gameUser1"
@@ -321,7 +351,10 @@ func handleFilesRequest(w http.ResponseWriter, r *http.Request) {
 
 func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (err error) {
 	//fmt.Println("GET: " + r.URL.Path)
-
+	query := r.URL.Query()
+	if !authRequest(w, query.Get("username"), query.Get("sessionid")) {
+		return
+	}
 	name := path.Base(r.URL.Path)
 	if strings.Contains(name, ".") {
 		fmt.Println("download: " + name)
@@ -365,6 +398,9 @@ func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (
 func handlePost(requestUrl string, w http.ResponseWriter, r *http.Request) (err error) {
 	fmt.Println("POST: " + r.URL.Path)
 	r.ParseMultipartForm(32 << 20)
+	if !authRequest(w, r.Form.Get("username"), r.Form.Get("sessionid")) {
+		return
+	}
 	file, handler, err := r.FormFile("newfile")
 	if err != nil {
 		fmt.Println(err)
