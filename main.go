@@ -119,6 +119,7 @@ type Mindustry struct {
 	i18n                   lingo.T
 	banCfg                 string
 	remoteBanCfg           *BanCfg
+	currBanList            *BanCfg
 	m_isPermitMapModify    bool
 	isShowDefaultMapInMaps bool
 	mapMangePort           int
@@ -631,6 +632,8 @@ func (this *Mindustry) init() {
 	this.c = cron.New()
 	this.adminCfg = new(AdminCfg)
 	this.remoteBanCfg = new(BanCfg)
+	this.currBanList = new(BanCfg)
+	this.currBanList.BanList = make([]Ban, 0)
 	this.port = 6567
 	this.mapMangePort = 6569
 	this.maxMapCount = 15
@@ -773,6 +776,7 @@ func (this *Mindustry) hourTask() {
 		this.execCmd("save " + strconv.Itoa(hour))
 		this.say("info.auto_save", hour)
 		this.netBan()
+		this.execCmd("bans")
 	} else {
 		log.Printf("game is not running.\n")
 	}
@@ -1489,6 +1493,13 @@ const SERVER_ERR_LOG string = "[E] "
 const SERVER_READY_KEY string = "Server loaded. Type 'help' for help."
 const SERVER_STSRT_KEY string = "Opened a server on port"
 
+var BAN_REG_ID = regexp.MustCompile("(.+?)\\s/\\sLast\\sknown\\sname\\:\\s'(.+?)'")
+var BAN_REG_IP_ID = regexp.MustCompile("'(.+?)'\\s/\\sLast\\sknown\\sname\\:\\s'(.+?)'\\s/\\sID:\\s'(.+?)'")
+var BAN_REG_IP = regexp.MustCompile("'(.+?)'\\s\\(No\\sknown\\sname\\sor\\sinfo\\)")
+
+var BAN_REG_UNBAN = regexp.MustCompile("Unbanned\\splayer\\:\\s(.+)")
+var BAN_REG_BAN = regexp.MustCompile("(.+?)\\shas\\sbanned\\s(.+)\\.")
+
 func getUserByOutput(key string, cmdBody string) (string, string, bool) {
 	index := strings.Index(cmdBody, key)
 	if index < 0 {
@@ -1505,6 +1516,28 @@ func getUserByOutput(key string, cmdBody string) (string, string, bool) {
 	uuid := strings.TrimSpace(uuidInfo[lIndex+1 : rIndex])
 	return userName, uuid, true
 }
+
+func (this *Mindustry) banUser(adminName string, username string) {
+	uuid := this.getUserId(username)
+	this.currBanList.BanList = append(this.currBanList.BanList, Ban{username, uuid, "", adminName, ""})
+	log.Printf("BanUser:%s->%s\n", adminName, username)
+
+}
+
+func (this *Mindustry) unbanUser(target string) {
+	j := 0
+	for _, user := range this.currBanList.BanList {
+		if user.Id != target && user.Name != target && user.Ip != target {
+			this.currBanList.BanList[j] = user
+			j++
+		} else {
+			log.Printf("UnbanUser:%s,%s,%s\n", user.Id, user.Name, user.Ip)
+		}
+	}
+	this.currBanList.BanList = this.currBanList.BanList[:j]
+
+}
+
 func (this *Mindustry) output(line string) {
 	index := strings.Index(line, SERVER_ERR_LOG)
 	if index >= 0 {
@@ -1529,12 +1562,43 @@ func (this *Mindustry) output(line string) {
 		}
 		return
 	}
+
+	if cmdBody == "Banned players [ID]:" {
+		if len(this.currBanList.BanList) > 0 {
+			this.currBanList.BanList = this.currBanList.BanList[0:0]
+			log.Printf("BanList init\n")
+		}
+		return
+	}
+	banIpId := BAN_REG_IP_ID.FindStringSubmatch(cmdBody)
+	if banIpId != nil {
+		this.currBanList.BanList = append(this.currBanList.BanList, Ban{banIpId[2], banIpId[3], banIpId[1], "", ""})
+		log.Printf("BanIpId:%s,%s,%s\n", banIpId[2], banIpId[3], banIpId[1])
+		return
+	}
+	banIp := BAN_REG_IP.FindStringSubmatch(cmdBody)
+	if banIp != nil {
+		this.currBanList.BanList = append(this.currBanList.BanList, Ban{"", "", banIp[1], "", ""})
+		log.Printf("BanIp:%s\n", banIp[1])
+		return
+	}
+	banUser := BAN_REG_BAN.FindStringSubmatch(cmdBody)
+	if banUser != nil {
+		this.banUser(banUser[1], banUser[2])
+		return
+	}
+	unbanUser := BAN_REG_UNBAN.FindStringSubmatch(cmdBody)
+	if unbanUser != nil {
+		this.unbanUser(unbanUser[1])
+		return
+	}
+
 	index = strings.Index(cmdBody, ":")
 	if index > -1 && !strings.HasPrefix(cmdBody, "Server:") {
 		userName := strings.TrimSpace(cmdBody[:index])
 		uuid := this.getUserId(userName)
 		if uuid == "" {
-			log.Printf("%s invalid user,vote invalid\n", userName)
+			//log.Printf("%s invalid user,vote invalid\n", userName)
 			return
 		}
 		if _, ok := this.users[uuid]; ok {
@@ -1602,6 +1666,7 @@ func (this *Mindustry) output(line string) {
 
 		this.execCmd("config name " + this.name)
 		this.execCmd("config port " + strconv.Itoa(this.port))
+		this.execCmd("bans")
 		if this.mode == "mission" {
 			this.execCmd("host " + this.missionMap + " mission")
 		} else {

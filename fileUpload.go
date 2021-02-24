@@ -33,13 +33,6 @@ type AdminsList struct {
 	GameName  string `json:"gamename"`
 	ApplyTime string `json:"time"`
 }
-
-type BlackList struct {
-	GameName string `json:"gameName"`
-	Uuid     string `json:"uuid"`
-	BanTime  string `json:"time"`
-}
-
 type LoginRslt struct {
 	Result  string `json:"result"`
 	Session string `json:"session"`
@@ -57,6 +50,9 @@ func init() {
 		}
 	}
 }
+
+const RSP_SUCC string = "succ"
+const RSP_FAIL string = "fail"
 
 var m_mindustryServer *Mindustry
 
@@ -92,7 +88,7 @@ func StartFileUpServer(mindustryServer *Mindustry) {
 }
 
 func authRequest(w http.ResponseWriter, username string, sessionId string) bool {
-	fmt.Printf("auth:username=%s,sessionId=%s", username, sessionId)
+	fmt.Print("auth:username=%s,sessionId=%s\n", username, sessionId)
 	/*
 		var result Rslt
 		result.Result = "user not login!"
@@ -105,6 +101,18 @@ func authRequest(w http.ResponseWriter, username string, sessionId string) bool 
 		w.Write(output)
 	*/
 	return true
+}
+
+func Response(w http.ResponseWriter, r string) {
+	var result Rslt
+	result.Result = r
+	output, err1 := json.MarshalIndent(&result, "", "\t\t")
+	if err1 != nil {
+		fmt.Printf("json gen fail")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(output)
 }
 
 func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
@@ -225,18 +233,16 @@ func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
 		if !authRequest(w, query.Get("username"), query.Get("sessionid")) {
 			return
 		}
-		blackList := make([]BlackList, 3)
-		blackList[0].GameName = "user1"
-		blackList[0].Uuid = "000123123123"
-		blackList[0].BanTime = "2021-01-09 22:00:00"
-		blackList[1].GameName = "user1"
-		blackList[1].Uuid = "000123123123"
-		blackList[1].BanTime = "2021-01-09 22:00:00"
-		blackList[2].GameName = "user1"
-		blackList[2].Uuid = "000123123123"
-		blackList[2].BanTime = "2021-01-09 22:00:00"
 
-		output, err1 := json.MarshalIndent(&blackList, "", "\t\t")
+		unbanTarget := query.Get("unban")
+		if unbanTarget != "" {
+			fmt.Println("Req unban:" + unbanTarget)
+			m_mindustryServer.execCmd("unban " + unbanTarget)
+			Response(w, RSP_SUCC)
+			return
+		}
+
+		output, err1 := json.MarshalIndent(m_mindustryServer.currBanList.BanList, "", "\t\t")
 		if err1 != nil {
 			err = err1
 			return
