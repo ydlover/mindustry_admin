@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"crypto/md5"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -27,6 +29,12 @@ import (
 
 var _VERSION_ = "1.0"
 
+func cryptoMd5(passwd string) string {
+	h := md5.New()
+	h.Write([]byte(passwd))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
 const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
 
 var re = regexp.MustCompile(ansi)
@@ -38,13 +46,18 @@ func StripColor(str string) string {
 type UserCmdProcHandle func(uuid string, userInput string, isOnlyCheck bool) bool
 
 type Admin struct {
+	UserName     string `json:"userName"`
 	Name         string `json:"name"`
 	Id           string `json:"id"`
+	Passwd       string `json:"passwd"`
 	LastVistTime string `json:"last vist time"`
+	onlineTime   int64  `json:"online time"`
+	sessionId    string `json:"sessionId"`
 }
 type AdminCfg struct {
 	SuperAdminList []Admin `json:"super admin"`
 	AdminList      []Admin `json:"admin"`
+	SignList       []Admin `json:"sign lst"`
 }
 
 type Ban struct {
@@ -634,6 +647,8 @@ func (this *Mindustry) init() {
 	this.remoteBanCfg = new(BanCfg)
 	this.currBanList = new(BanCfg)
 	this.currBanList.BanList = make([]Ban, 0)
+	this.adminCfg.SignList = make([]Admin, 0)
+	this.adminCfg.AdminList = make([]Admin, 0)
 	this.port = 6567
 	this.mapMangePort = 6569
 	this.maxMapCount = 15
@@ -641,8 +656,6 @@ func (this *Mindustry) init() {
 	this.loadConfig()
 	this.loadAdminConfig()
 	this.loadMindustryVersionInfoCfg()
-	this.userCmdProcHandles["admin"] = this.proc_admin
-	this.userCmdProcHandles["unadmin"] = this.proc_unadmin
 	this.userCmdProcHandles["directCmd"] = this.proc_directCmd
 	this.userCmdProcHandles["gameover"] = this.proc_gameover
 	this.userCmdProcHandles["help"] = this.proc_help
@@ -1129,43 +1142,181 @@ func (this *Mindustry) proc_load(uuid string, userInput string, isOnlyCheck bool
 	this.execCmd(userInput)
 	return true
 }
-func (this *Mindustry) proc_admin(uuid string, userInput string, isOnlyCheck bool) bool {
-	targetName := userInput[len("admin"):]
-	targetName = strings.TrimSpace(targetName)
-	if targetName == "" {
-		this.say("error.cmd_admin_name_invalid")
-		return false
-	}
-	if isOnlyCheck {
-		return true
-	}
-	newAdmin := Admin{targetName, "", ""}
-	this.adminCfg.AdminList = append(this.adminCfg.AdminList, newAdmin)
-	this.writeAdminConfig()
-	this.say("info.admin_added", targetName)
 
-	return true
-}
-func (this *Mindustry) proc_unadmin(uuid string, userInput string, isOnlyCheck bool) bool {
-	targetName := userInput[len("unadmin"):]
-	targetName = strings.TrimSpace(targetName)
-	if targetName == "" {
-		this.say("error.cmd_admin_name_invalid")
-		return false
+func (this *Mindustry) getAdmin(userName string) *Admin {
+	for i, admin := range this.adminCfg.SuperAdminList {
+		if admin.UserName == userName {
+			return &this.adminCfg.SuperAdminList[i]
+		}
 	}
-	if isOnlyCheck {
-		return true
-	}
-	this.execCmd("admin remove " + targetName)
 	for i, admin := range this.adminCfg.AdminList {
-		if admin.Name == targetName {
-			this.adminCfg.AdminList = append(this.adminCfg.AdminList[:i], this.adminCfg.AdminList[i+1:]...)
+		if admin.UserName == userName {
+			return &this.adminCfg.AdminList[i]
+		}
+	}
+
+	return nil
+}
+
+func (this *Mindustry) getAdminByGameName(gameName string) *Admin {
+	for i, admin := range this.adminCfg.SuperAdminList {
+		if admin.Name == gameName {
+			return &this.adminCfg.SuperAdminList[i]
+		}
+	}
+	for i, admin := range this.adminCfg.AdminList {
+		if admin.Name == gameName {
+			return &this.adminCfg.AdminList[i]
+		}
+	}
+
+	return nil
+}
+
+func (this *Mindustry) getSign(userName string) *Admin {
+	for i, admin := range this.adminCfg.SignList {
+		if admin.UserName == userName {
+			return &this.adminCfg.SignList[i]
+		}
+	}
+
+	return nil
+}
+
+func (this *Mindustry) getSignByGameName(gameName string) *Admin {
+	for i, admin := range this.adminCfg.SignList {
+		if admin.Name == gameName {
+			return &this.adminCfg.SignList[i]
+		}
+	}
+
+	return nil
+}
+
+func (this *Mindustry) denySign(userName string) bool {
+	for i, admin := range this.adminCfg.SignList {
+		if admin.UserName == userName {
+			gameName := admin.Name
+			this.adminCfg.SignList = append(this.adminCfg.SignList[:i], this.adminCfg.SignList[i+1:]...)
 			this.writeAdminConfig()
-			this.say("info.admin_removed", targetName)
+			log.Printf("[INFO]deny sign,userName=%s,gameName=%s\n", userName, gameName)
 			return true
 		}
 	}
-	this.say("error.admin_unremoved", targetName)
+	log.Printf("[INFO]deny sign,i not found, userName=%s\n", userName)
+	return false
+}
+
+func (this *Mindustry) addAdmin(userName string) bool {
+	signAdmin := this.getSign(userName)
+	if signAdmin == nil {
+		log.Printf("[INFO]addAdmin,not found, userName=%s\n", userName)
+		return false
+	}
+	newAdmin := *signAdmin
+	this.adminCfg.AdminList = append(this.adminCfg.AdminList, newAdmin)
+	this.denySign(userName)
+	this.writeAdminConfig()
+	log.Printf("[INFO]add admin,userName=%s\n", userName)
+	return true
+}
+
+func (this *Mindustry) regAdmin(userName string, gameName string, passwd string) bool {
+	if this.getAdmin(userName) != nil || this.getAdminByGameName(gameName) != nil {
+		log.Printf("[INFO]regAdmin,is exist in admin list, userName=%s,gameName=%s\n", userName, gameName)
+		return false
+	}
+	if this.getSign(userName) != nil || this.getSignByGameName(gameName) != nil {
+		log.Printf("[INFO]regAdmin,is exist in sign list, userName=%s,gameName=%s\n", userName, gameName)
+		return false
+	}
+
+	cryPasswd := cryptoMd5(passwd)
+	nowTime := time.Now().Format("2006-01-02 15:04:05")
+	newAdmin := Admin{userName, gameName, "", cryPasswd, nowTime, 0, ""}
+	this.adminCfg.SignList = append(this.adminCfg.SignList, newAdmin)
+	this.writeAdminConfig()
+	log.Printf("[INFO]regAdmin,userName=%s,gameName=%s\n", userName, gameName)
+	return true
+}
+
+func (this *Mindustry) rmvAdmin(userName string) bool {
+	for i, admin := range this.adminCfg.AdminList {
+		if admin.UserName == userName {
+			gameName := admin.Name
+			this.adminCfg.AdminList = append(this.adminCfg.AdminList[:i], this.adminCfg.AdminList[i+1:]...)
+			this.writeAdminConfig()
+			log.Printf("[INFO]rmvAdmin,userName=%s,gameName=%s\n", userName, gameName)
+			return true
+		}
+	}
+	log.Printf("[INFO]rmvAdmin,i not found, userName=%s\n", userName)
+	return false
+}
+
+func (this *Mindustry) webLoginAdmin(userName string, passwd string) bool {
+	admin := this.getAdmin(userName)
+	if admin == nil {
+		log.Printf("[INFO]web login,not found userName=%s", userName)
+		return false
+	}
+	if admin.Passwd != cryptoMd5(passwd) {
+		log.Printf("[INFO]web login,passwd err, userName=%s\n", userName)
+		return false
+	}
+	gameName := admin.Name
+	admin.sessionId = string(rand.Int63())
+	log.Printf("[INFO]web login,userName=%s,gameName=%s, sessionId=%s\n", userName, gameName, admin.sessionId)
+	return true
+}
+func (this *Mindustry) webLoginSessionChk(userName string, sessionId string) bool {
+	admin := this.getAdmin(userName)
+	if admin == nil {
+		log.Printf("[INFO]web login,not found userName=%s", userName)
+		return false
+	}
+
+	if admin.sessionId == sessionId {
+		admin.onlineTime = time.Now().Unix()
+		return true
+	}
+	log.Printf("[INFO]web login,not found session, userName=%s, sessionId", userName, sessionId)
+	return false
+}
+
+func (this *Mindustry) webLoginUuidReset(userName string, gameName string) bool {
+	admin := this.getAdmin(userName)
+	if admin == nil {
+		log.Printf("[INFO]uuid reset,not found userName=%s", userName)
+		return false
+	}
+
+	admin.Name = gameName
+	admin.Id = ""
+	this.writeAdminConfig()
+	log.Printf("[INFO]web login,reset uuid, userName=%s", userName)
+	return true
+}
+
+func (this *Mindustry) webLoginModifyPasswd(userName string, passwd string) bool {
+	admin := this.getAdmin(userName)
+	if admin == nil {
+		log.Printf("[INFO]web login modifyPasswd,not found userName=%s", userName)
+		return false
+	}
+
+	admin.Passwd = cryptoMd5(passwd)
+	this.writeAdminConfig()
+	log.Printf("[INFO]passwd modified, userName=%s", userName)
+	return true
+}
+
+func (this *Mindustry) webLoginIsSop(userName string) bool {
+	for _, admin := range this.adminCfg.SuperAdminList {
+		if admin.UserName == userName {
+			return true
+		}
+	}
 	return false
 }
 
@@ -1720,7 +1871,12 @@ func main() {
 	mode := flag.String("mode", "", "fix mode:survival,attack,sandbox,pvp")
 	port := flag.Int("port", 0, "Input port")
 	map_port := flag.Int("up", 0, "map up port")
+	passwd := flag.String("gen", "", "crypto passwd")
 	flag.Parse()
+	if *passwd != "" {
+		fmt.Println(cryptoMd5(*passwd))
+		return
+	}
 	outfile, err := os.OpenFile("./logs/admin.log", os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
 		fmt.Println("open log file failed")

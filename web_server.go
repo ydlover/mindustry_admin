@@ -42,7 +42,7 @@ type Rslt struct {
 	Result string `json:"result"`
 }
 
-func init() {
+func DirsInit() {
 	for _, filePath := range url2path {
 		err := initFilePath(filePath)
 		if err != nil {
@@ -57,12 +57,14 @@ const RSP_FAIL string = "fail"
 var m_mindustryServer *Mindustry
 
 func StartFileUpServer(mindustryServer *Mindustry) {
+	DirsInit()
 	mux := http.NewServeMux()
-	fs := http.FileServer(http.Dir("map_manager"))
+	fs := http.FileServer(http.Dir("web"))
 	mux.Handle("/", fs)
 	mh := http.HandlerFunc(handleFilesRequest)
 	mux.Handle("/login", http.HandlerFunc(handleLoginRequest))
 	mux.Handle("/sign", http.HandlerFunc(handleSignRequest))
+	mux.Handle("/signList", http.HandlerFunc(handleSignList))
 	mux.Handle("/modifyPasswd", http.HandlerFunc(handleModifyPasswdRequest))
 	mux.Handle("/resetUuid", http.HandlerFunc(handleResetUuidRequest))
 	mux.Handle("/admins", http.HandlerFunc(handleAdminsRequest))
@@ -87,20 +89,21 @@ func StartFileUpServer(mindustryServer *Mindustry) {
 	server.ListenAndServe()
 }
 
-func authRequest(w http.ResponseWriter, username string, sessionId string) bool {
-	fmt.Print("auth:username=%s,sessionId=%s\n", username, sessionId)
-	/*
-		var result Rslt
-		result.Result = "user not login!"
-		output, err1 := json.MarshalIndent(&result, "", "\t\t")
-		if err1 != nil {
-			fmt.Printf("json gen fail")
-			return false
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(output)
-	*/
-	return true
+func authRequest(w http.ResponseWriter, userName string, sessionId string) bool {
+	fmt.Printf("auth:username=%s,sessionId=%s\n", userName, sessionId)
+	if m_mindustryServer.webLoginSessionChk(userName, sessionId) {
+		return true
+	}
+	var result Rslt
+	result.Result = "user not login!"
+	output, err1 := json.MarshalIndent(&result, "", "\t\t")
+	if err1 != nil {
+		fmt.Printf("json gen fail")
+		return false
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(output)
+	return false
 }
 
 func Response(w http.ResponseWriter, r string) {
@@ -123,9 +126,21 @@ func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "POST":
+
+		r.ParseForm()
+		userName := r.Form.Get("username")
+		passwd := r.Form.Get("passwd")
 		var result LoginRslt
-		result.Result = "admin"
-		result.Session = "123123123123"
+		isSucc := m_mindustryServer.webLoginAdmin(userName, passwd)
+		if isSucc {
+			result.Result = "admin"
+			if m_mindustryServer.webLoginIsSop(userName) {
+				result.Result = "suop"
+			}
+			result.Session = m_mindustryServer.getAdmin(userName).sessionId
+		} else {
+			result.Result = RSP_FAIL
+		}
 		output, err1 := json.MarshalIndent(&result, "", "\t\t")
 		if err1 != nil {
 			err = err1
@@ -140,32 +155,26 @@ func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func handleSignRequest(w http.ResponseWriter, r *http.Request) {
-	var err error
 	fmt.Println("handleSignRequest url:" + r.URL.Path + ", method:" + r.Method)
 	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
 	fmt.Println("request post:" + string(con))
 
 	switch r.Method {
 	case "POST":
-		var result Rslt
-		result.Result = "succ"
-		output, err1 := json.MarshalIndent(&result, "", "\t\t")
-		if err1 != nil {
-			err = err1
-			return
+		r.ParseForm()
+		userName := r.Form.Get("username")
+		gameName := r.Form.Get("gamename")
+		passwd := r.Form.Get("passwd")
+		isSucc := m_mindustryServer.regAdmin(userName, gameName, passwd)
+		if isSucc {
+			Response(w, RSP_SUCC)
+		} else {
+			Response(w, RSP_FAIL)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(output)
-		return
 
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 	}
 }
 func handleResetUuidRequest(w http.ResponseWriter, r *http.Request) {
-	var err error
 	fmt.Println("handleResetUuidRequest url:" + r.URL.Path + ", method:" + r.Method)
 	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
 	fmt.Println("request post:" + string(con))
@@ -173,28 +182,26 @@ func handleResetUuidRequest(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		query := r.URL.Query()
-		if !authRequest(w, query.Get("username"), query.Get("sessionid")) {
+		userName := query.Get("username")
+		gameName := query.Get("gamename")
+		sessionId := query.Get("sessionid")
+		if !authRequest(w, userName, sessionId) {
 			return
 		}
-		var result Rslt
-		result.Result = "succ"
-		output, err1 := json.MarshalIndent(&result, "", "\t\t")
-		if err1 != nil {
-			err = err1
-			return
+		if gameName == "" {
+			gameName = m_mindustryServer.getAdmin(userName).Name
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(output)
-		return
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		isSucc := m_mindustryServer.webLoginUuidReset(userName, gameName)
+		if isSucc {
+			Response(w, RSP_SUCC)
+		} else {
+			Response(w, RSP_FAIL)
 		}
+
 	}
 }
 
 func handleModifyPasswdRequest(w http.ResponseWriter, r *http.Request) {
-	var err error
 	fmt.Println("handleModifyPasswdRequest url:" + r.URL.Path + ", method:" + r.Method)
 	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
 	fmt.Println("request post:" + string(con))
@@ -204,25 +211,20 @@ func handleModifyPasswdRequest(w http.ResponseWriter, r *http.Request) {
 		if !authRequest(w, r.Form.Get("username"), r.Form.Get("sessionid")) {
 			return
 		}
-		var result Rslt
-		result.Result = "succ"
-		output, err1 := json.MarshalIndent(&result, "", "\t\t")
-		if err1 != nil {
-			err = err1
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(output)
-		return
+		userName := r.Form.Get("username")
+		passwd := r.Form.Get("passwd")
 
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		isSucc := m_mindustryServer.webLoginModifyPasswd(userName, passwd)
+		if isSucc {
+			Response(w, RSP_SUCC)
+		} else {
+			Response(w, RSP_FAIL)
 		}
+
+		return
 	}
 }
 func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
-	var err error
 	fmt.Println("handleBlackListRequest url:" + r.URL.Path + ", method:" + r.Method)
 	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
 	fmt.Println("request post:" + string(con))
@@ -244,22 +246,78 @@ func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
 
 		output, err1 := json.MarshalIndent(m_mindustryServer.currBanList.BanList, "", "\t\t")
 		if err1 != nil {
-			err = err1
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(output)
 		return
 	case "POST":
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		Response(w, RSP_FAIL)
 	}
 }
+
+func handleSignList(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("handleSignList url:" + r.URL.Path)
+	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
+	fmt.Println("request post:" + string(con))
+
+	switch r.Method {
+	case "GET":
+		query := r.URL.Query()
+		userName := query.Get("username")
+		sessionId := query.Get("sessionid")
+		if !authRequest(w, userName, sessionId) {
+			return
+		}
+		isSop := m_mindustryServer.webLoginIsSop(userName)
+		if !isSop {
+			Response(w, "user not is super admin")
+			return
+		}
+		deny := query.Get("deny")
+		if deny != "" {
+			isExist := m_mindustryServer.getSign(deny) != nil
+			if !isExist {
+				Response(w, "deny user is not exist")
+				return
+			}
+			denyIsSucc := m_mindustryServer.denySign(deny)
+			if !denyIsSucc {
+				Response(w, "user deny fail")
+				return
+			}
+			Response(w, RSP_SUCC)
+			return
+		}
+
+		add := query.Get("add")
+		if add != "" {
+			isExist := m_mindustryServer.getAdmin(add) != nil
+			if isExist {
+				Response(w, "user is exist")
+				return
+			}
+			if !m_mindustryServer.addAdmin(add) {
+				Response(w, "user add fail")
+				return
+			}
+			Response(w, RSP_SUCC)
+			return
+		}
+
+		output, err1 := json.MarshalIndent(m_mindustryServer.adminCfg.SignList, "", "\t\t")
+		if err1 != nil {
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(output)
+		return
+	case "POST":
+		Response(w, RSP_FAIL)
+	}
+}
+
 func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
-	var err error
 	fmt.Println("handleAdminsRequest url:" + r.URL.Path)
 	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
 	fmt.Println("request post:" + string(con))
@@ -267,34 +325,39 @@ func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		query := r.URL.Query()
-		if !authRequest(w, query.Get("username"), query.Get("sessionid")) {
+		userName := query.Get("username")
+		sessionId := query.Get("sessionid")
+		if !authRequest(w, userName, sessionId) {
 			return
 		}
-		adminsList := make([]AdminsList, 3)
-		adminsList[0].UserName = "user1"
-		adminsList[0].GameName = "gameUser1"
-		adminsList[0].ApplyTime = "2021-01-09 22:00:00"
-		adminsList[1].UserName = "user1"
-		adminsList[1].GameName = "gameUser1"
-		adminsList[1].ApplyTime = "2021-01-09 22:00:00"
-		adminsList[2].UserName = "user1"
-		adminsList[2].GameName = "gameUser1"
-		adminsList[2].ApplyTime = "2021-01-09 22:00:00"
-
-		output, err1 := json.MarshalIndent(&adminsList, "", "\t\t")
+		isSop := m_mindustryServer.webLoginIsSop(userName)
+		if !isSop {
+			Response(w, "user not is super admin")
+			return
+		}
+		rmv := query.Get("rmv")
+		if rmv != "" {
+			isExist := m_mindustryServer.getAdmin(rmv) != nil
+			if !isExist {
+				Response(w, "user is not exist")
+				return
+			}
+			if !m_mindustryServer.rmvAdmin(rmv) {
+				Response(w, "user rmv fail")
+				return
+			}
+			Response(w, RSP_SUCC)
+			return
+		}
+		output, err1 := json.MarshalIndent(m_mindustryServer.adminCfg.AdminList, "", "\t\t")
 		if err1 != nil {
-			err = err1
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(output)
 		return
 	case "POST":
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		Response(w, RSP_FAIL)
 	}
 }
 
@@ -318,42 +381,23 @@ func handleFilesRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("request post:" + string(con))
 	requestUrl := getRequestFileUrl(r)
 	if requestUrl == "" {
-		fmt.Printf("invalid url!\n")
-		w.WriteHeader(403)
-		w.Write([]byte("not_permit"))
+		Response(w, "invalid url")
 		return
 	}
 	switch r.Method {
 	case "GET":
 		err = handleFilesGet(requestUrl, w, r)
 	case "POST":
-		if !m_mindustryServer.isPermitMapModify() {
-			fmt.Printf("up is not permit!\n")
-			w.WriteHeader(403)
-			w.Write([]byte("not_permit"))
-			return
-		}
 		fileCnt := getDirFilesCnt(requestUrl)
 		if fileCnt > m_mindustryServer.maxMapCount {
 			fmt.Printf("fileCnt(%d) > maxMapCount(%d)!\n", fileCnt, m_mindustryServer.maxMapCount)
-			w.WriteHeader(403)
-			w.Write([]byte("not_cap"))
+			Response(w, "file is full")
 			return
 		}
 		err = handlePost(requestUrl, w, r)
-
-	case "DELETE":
-		if !m_mindustryServer.isPermitMapModify() {
-			fmt.Printf("map delete is not permit!\n")
-			w.WriteHeader(200)
-			w.Write([]byte("not_permit"))
+		if err != nil {
 			return
 		}
-		err = handleDelete(requestUrl, w, r)
-	}
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
 }
 
@@ -363,43 +407,55 @@ func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (
 	if !authRequest(w, query.Get("username"), query.Get("sessionid")) {
 		return
 	}
+	delFile := query.Get("delete")
+	downFile := query.Get("download")
 	name := path.Base(r.URL.Path)
-	if strings.Contains(name, ".") {
-		fmt.Println("download: " + name)
-		file := url2path[requestUrl] + name
+	if downFile != "" {
+		fmt.Println("download: " + downFile)
+		file := url2path[requestUrl] + downFile
 		if exist, _ := exists(file); !exist {
 			http.NotFound(w, r)
 		}
 		http.ServeFile(w, r, file)
 		return
-	} else {
-		_dirpath, err1 := os.Open(url2path[requestUrl])
-		if err1 != nil {
-			err = err1
-			return
+	}
+	if delFile != "" {
+		fmt.Println("DELETE: " + url2path[requestUrl] + delFile)
+		err = os.Remove(url2path[requestUrl] + name)
+		if err != nil {
+			fmt.Println(err)
+			Response(w, "file del fail")
+		} else {
+			Response(w, RSP_SUCC)
 		}
-		_dir, err1 := _dirpath.Readdir(0)
-		if err1 != nil {
-			err = err1
-			return
-		}
-		files := make([]FileDesc, len(_dir))
-		for i, f := range _dir {
-			files[i].Id = i + 1
-			files[i].Name = f.Name()
-			files[i].Path = ""
-			files[i].Size = f.Size()
-
-		}
-		output, err1 := json.MarshalIndent(&files, "", "\t\t")
-		if err1 != nil {
-			err = err1
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(output)
 		return
 	}
+	_dirpath, err1 := os.Open(url2path[requestUrl])
+	if err1 != nil {
+		err = err1
+		return
+	}
+	_dir, err1 := _dirpath.Readdir(0)
+	if err1 != nil {
+		err = err1
+		return
+	}
+	files := make([]FileDesc, len(_dir))
+	for i, f := range _dir {
+		files[i].Id = i + 1
+		files[i].Name = f.Name()
+		files[i].Path = ""
+		files[i].Size = f.Size()
+
+	}
+	output, err1 := json.MarshalIndent(&files, "", "\t\t")
+	if err1 != nil {
+		err = err1
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(output)
+	return
 
 }
 
@@ -443,7 +499,8 @@ func getCurrentDirectory() string {
 	return strings.Replace(dir, "\\", "/", -1)
 }
 func initFilePath(filePath string) (err error) {
-	if _, err = exists(filePath); err != nil {
+	isExist, _ := exists(filePath)
+	if isExist {
 		return
 	}
 	err = os.Mkdir(filePath, 0777)
