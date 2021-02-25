@@ -50,6 +50,7 @@ type Admin struct {
 	Name         string `json:"name"`
 	Id           string `json:"id"`
 	Passwd       string `json:"passwd"`
+	Contact      string `json:"contact"`
 	LastVistTime string `json:"last vist time"`
 	onlineTime   int64  `json:"online time"`
 	sessionId    string `json:"sessionId"`
@@ -1221,7 +1222,7 @@ func (this *Mindustry) addAdmin(userName string) bool {
 	return true
 }
 
-func (this *Mindustry) regAdmin(userName string, gameName string, passwd string) bool {
+func (this *Mindustry) regAdmin(userName string, gameName string, passwd string, contact string) bool {
 	if this.getAdmin(userName) != nil || this.getAdminByGameName(gameName) != nil {
 		log.Printf("[INFO]regAdmin,is exist in admin list, userName=%s,gameName=%s\n", userName, gameName)
 		return false
@@ -1233,7 +1234,7 @@ func (this *Mindustry) regAdmin(userName string, gameName string, passwd string)
 
 	cryPasswd := cryptoMd5(passwd)
 	nowTime := time.Now().Format("2006-01-02 15:04:05")
-	newAdmin := Admin{userName, gameName, "", cryPasswd, nowTime, 0, ""}
+	newAdmin := Admin{userName, gameName, "", cryPasswd, contact, nowTime, 0, ""}
 	this.adminCfg.SignList = append(this.adminCfg.SignList, newAdmin)
 	this.writeAdminConfig()
 	log.Printf("[INFO]regAdmin,userName=%s,gameName=%s\n", userName, gameName)
@@ -1265,7 +1266,11 @@ func (this *Mindustry) webLoginAdmin(userName string, passwd string) bool {
 		return false
 	}
 	gameName := admin.Name
-	admin.sessionId = string(rand.Int63())
+	sessionIdTmp := time.Now().UnixNano() * rand.Int63()
+	if sessionIdTmp < 0 {
+		sessionIdTmp *= -1
+	}
+	admin.sessionId = strconv.FormatInt(sessionIdTmp, 10)
 	log.Printf("[INFO]web login,userName=%s,gameName=%s, sessionId=%s\n", userName, gameName, admin.sessionId)
 	return true
 }

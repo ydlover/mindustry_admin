@@ -8,7 +8,6 @@
 * 3)地图管理器，管理员可以通过web页面更换地图   
 * 4)整点(每小时)自动备份功能   
 * 5)投票功能，例如普通玩家可以通过/votetick hostx 1发起更换地图的投票  
-* 6)网络ban功能（默认不启用)，请通过修改config.ini中相应配置启用  
 
 使用方法
 =========
@@ -34,9 +33,40 @@
 * 4)/load slot 命令执行前检查slot是否非法，load时会自动重启服务端
 * 5)/slots 查看当前服务器上可用存档
 * 6)/show 查看服务器的管理员名单，默认普通用户可执行
- 
-Feture lists
+
+Web api
+===============
+* [get]黑名单列表:/blacklist
+* [get]解封blacklist?unban=uuid
+* [get]查看管理员列表/admins
+* [get]超管删除管理员/admins?rmv=申请名
+* [get]查看申请列表/signList
+* [get]超管同意申请/signList?add=申请名
+* [get]超管拒绝/signList?deny=申请名
+* [get]地图列表/maps
+* [get]地图下载/maps?download=文件名
+* [get]地图删除/maps?delete=文件名
+* [post]地图上传/maps,字段名file
+* /mods(同地图)
+* /plugins(同地图)
+* [post]登录/login?username=xx&passwd=yy
+* [post]注册管理员/sign?username=xx&passwd=yy&gamename=游戏里面昵称&contact=联系方式
+* [post]修改密码/modifyPasswd?passwd=新密码
+* [get]重置uuid，/resetUuid
+* [get]重置uuid同时修改游戏里面的名字，/resetUuid?gamename=xxx
+
+注意事项
 ============
+会话保持(10分钟不操作会被下线):除sign和login外都必须带username和sessionid
+
+回应只有三种:
+============
+* 1)maps/blacklist/admins这种回应列表json格式
+* 2)login:{"result":"admin/sop/其它错误信息，可以用来显示在app","session":"11111"}
+* 3)其它操作:{"result":"succ/其它错误信息，可以用来显示在app
+
+Feture lists
+=================
 * 1) In the game, commands are sent through chat windows, such as gameover [already supported]
 * 2) Basic privilege control, only admin or superAdmin has command execution privilege [already supported]
 * 3) Map Manager, which allows administrators to change maps through web pages [already supported]

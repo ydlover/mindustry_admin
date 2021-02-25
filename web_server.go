@@ -121,8 +121,6 @@ func Response(w http.ResponseWriter, r string) {
 func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
 	fmt.Println("handleLoginRequest url:" + r.URL.Path + ", method:" + r.Method)
-	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
-	fmt.Println("request post:" + string(con))
 
 	switch r.Method {
 	case "POST":
@@ -130,6 +128,8 @@ func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		userName := r.Form.Get("username")
 		passwd := r.Form.Get("passwd")
+		fmt.Println("request name:" + userName)
+		fmt.Println("request pass:" + passwd)
 		var result LoginRslt
 		isSucc := m_mindustryServer.webLoginAdmin(userName, passwd)
 		if isSucc {
@@ -156,16 +156,14 @@ func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 }
 func handleSignRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("handleSignRequest url:" + r.URL.Path + ", method:" + r.Method)
-	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
-	fmt.Println("request post:" + string(con))
-
 	switch r.Method {
 	case "POST":
 		r.ParseForm()
 		userName := r.Form.Get("username")
 		gameName := r.Form.Get("gamename")
 		passwd := r.Form.Get("passwd")
-		isSucc := m_mindustryServer.regAdmin(userName, gameName, passwd)
+		contact := r.Form.Get("contact")
+		isSucc := m_mindustryServer.regAdmin(userName, gameName, passwd, contact)
 		if isSucc {
 			Response(w, RSP_SUCC)
 		} else {
@@ -176,9 +174,6 @@ func handleSignRequest(w http.ResponseWriter, r *http.Request) {
 }
 func handleResetUuidRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("handleResetUuidRequest url:" + r.URL.Path + ", method:" + r.Method)
-	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
-	fmt.Println("request post:" + string(con))
-
 	switch r.Method {
 	case "GET":
 		query := r.URL.Query()
@@ -203,8 +198,6 @@ func handleResetUuidRequest(w http.ResponseWriter, r *http.Request) {
 
 func handleModifyPasswdRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("handleModifyPasswdRequest url:" + r.URL.Path + ", method:" + r.Method)
-	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
-	fmt.Println("request post:" + string(con))
 	switch r.Method {
 	case "POST":
 		r.ParseForm()
@@ -226,9 +219,6 @@ func handleModifyPasswdRequest(w http.ResponseWriter, r *http.Request) {
 }
 func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("handleBlackListRequest url:" + r.URL.Path + ", method:" + r.Method)
-	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
-	fmt.Println("request post:" + string(con))
-
 	switch r.Method {
 	case "GET":
 		query := r.URL.Query()
@@ -258,8 +248,6 @@ func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
 
 func handleSignList(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("handleSignList url:" + r.URL.Path)
-	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
-	fmt.Println("request post:" + string(con))
 
 	switch r.Method {
 	case "GET":
@@ -269,12 +257,13 @@ func handleSignList(w http.ResponseWriter, r *http.Request) {
 		if !authRequest(w, userName, sessionId) {
 			return
 		}
+		deny := query.Get("deny")
+		add := query.Get("add")
 		isSop := m_mindustryServer.webLoginIsSop(userName)
-		if !isSop {
+		if (deny != "" || add != "") && !isSop {
 			Response(w, "user not is super admin")
 			return
 		}
-		deny := query.Get("deny")
 		if deny != "" {
 			isExist := m_mindustryServer.getSign(deny) != nil
 			if !isExist {
@@ -290,7 +279,6 @@ func handleSignList(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		add := query.Get("add")
 		if add != "" {
 			isExist := m_mindustryServer.getAdmin(add) != nil
 			if isExist {
@@ -319,9 +307,6 @@ func handleSignList(w http.ResponseWriter, r *http.Request) {
 
 func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("handleAdminsRequest url:" + r.URL.Path)
-	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
-	fmt.Println("request post:" + string(con))
-
 	switch r.Method {
 	case "GET":
 		query := r.URL.Query()
@@ -330,12 +315,12 @@ func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
 		if !authRequest(w, userName, sessionId) {
 			return
 		}
+		rmv := query.Get("rmv")
 		isSop := m_mindustryServer.webLoginIsSop(userName)
-		if !isSop {
+		if rmv != "" && !isSop {
 			Response(w, "user not is super admin")
 			return
 		}
-		rmv := query.Get("rmv")
 		if rmv != "" {
 			isExist := m_mindustryServer.getAdmin(rmv) != nil
 			if !isExist {
@@ -349,7 +334,12 @@ func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
 			Response(w, RSP_SUCC)
 			return
 		}
-		output, err1 := json.MarshalIndent(m_mindustryServer.adminCfg.AdminList, "", "\t\t")
+		adminList := make([]Admin, len(m_mindustryServer.adminCfg.AdminList))
+		copy(adminList, m_mindustryServer.adminCfg.AdminList)
+		for i, _ := range adminList {
+			adminList[i].Id = ""
+		}
+		output, err1 := json.MarshalIndent(adminList, "", "\t\t")
 		if err1 != nil {
 			return
 		}
@@ -377,8 +367,6 @@ func getDirFilesCnt(requestUrl string) int {
 func handleFilesRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
 	fmt.Println("request files url:" + r.URL.Path)
-	con, _ := ioutil.ReadAll(r.Body) //获取post的数据
-	fmt.Println("request post:" + string(con))
 	requestUrl := getRequestFileUrl(r)
 	if requestUrl == "" {
 		Response(w, "invalid url")
@@ -409,7 +397,6 @@ func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (
 	}
 	delFile := query.Get("delete")
 	downFile := query.Get("download")
-	name := path.Base(r.URL.Path)
 	if downFile != "" {
 		fmt.Println("download: " + downFile)
 		file := url2path[requestUrl] + downFile
@@ -421,7 +408,7 @@ func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (
 	}
 	if delFile != "" {
 		fmt.Println("DELETE: " + url2path[requestUrl] + delFile)
-		err = os.Remove(url2path[requestUrl] + name)
+		err = os.Remove(url2path[requestUrl] + delFile)
 		if err != nil {
 			fmt.Println(err)
 			Response(w, "file del fail")
@@ -461,11 +448,14 @@ func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (
 
 func handlePost(requestUrl string, w http.ResponseWriter, r *http.Request) (err error) {
 	fmt.Println("POST: " + r.URL.Path)
-	r.ParseMultipartForm(32 << 20)
-	if !authRequest(w, r.Form.Get("username"), r.Form.Get("sessionid")) {
+	r.ParseForm()
+	userName := r.Form.Get("username")
+	sessionId := r.Form.Get("sessionid")
+	if !authRequest(w, userName, sessionId) {
 		return
 	}
-	file, handler, err := r.FormFile("newfile")
+	r.ParseMultipartForm(32 << 20)
+	file, handler, err := r.FormFile("file")
 	if err != nil {
 		fmt.Println(err)
 		return
