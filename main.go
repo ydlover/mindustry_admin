@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"container/list"
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/emirpasic/gods/maps/linkedhashmap"
 	"github.com/kortemy/lingo"
 	"github.com/larspensjo/config"
 	"github.com/robfig/cron"
@@ -24,6 +26,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -79,6 +82,11 @@ type Assets struct {
 	BrowserDownloadUrl string `json:"browser_download_url"`
 }
 
+type Message struct {
+	Id      int    `json:"id"`
+	Message string `json:"message"`
+}
+
 type GithubReleasesLatestApi struct {
 	TagName     string   `json:"tag_name"`
 	PublishedAt string   `json:"published_at"`
@@ -92,11 +100,23 @@ type MindustryVersionInfo struct {
 	VerList       []GithubReleasesLatestApi `json:"ver_list"`
 }
 
+type GameStatus struct {
+	CurrVer    string `json:"curr_ver"`
+	NewVer     string `json:"nwe_ver"`
+	ManagerVer string `json:"manager_ver"`
+	CpuTemp    string `json:"cpuTemp"`
+	Fps        string `json:"fps"`
+	Online     string `json:"online"`
+	Running    string `json:"running"`
+	RunTime    string `json:"run_time"`
+}
+
 type User struct {
-	name         string
-	uuid         string
-	isAdmin      bool
-	isSuperAdmin bool
+	Name         string `json:"name"`
+	Uuid         string `json:"uuid"`
+	OnlineTime   string `json:"online_time"`
+	IsAdmin      bool   `json:"admin"`
+	IsSuperAdmin bool   `json:"suop"`
 	level        int
 }
 type Cmd struct {
@@ -110,6 +130,7 @@ type Mindustry struct {
 	adminCfg               *AdminCfg
 	jarPath                string
 	users                  map[string]User
+	lastUsers              *linkedhashmap.Map
 	votetickUsers          map[string]int
 	serverOutR             *regexp.Regexp
 	cfgAdminCmds           string
@@ -152,6 +173,9 @@ type Mindustry struct {
 	isNeedRestartForUpdate bool
 	currMindustryVer       string
 	mindustryVersionInfo   *MindustryVersionInfo
+	gameStatus             *GameStatus
+	startTime              int64
+	chartMessages          list.List
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -179,7 +203,7 @@ func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
 }
 func (this *Mindustry) getUserId(name string) string {
 	for uuid, user := range this.users {
-		if name == user.name {
+		if name == user.Name {
 			return uuid
 		}
 	}
@@ -647,12 +671,15 @@ func (this *Mindustry) init() {
 	this.adminCfg = new(AdminCfg)
 	this.remoteBanCfg = new(BanCfg)
 	this.currBanList = new(BanCfg)
+	this.gameStatus = new(GameStatus)
 	this.currBanList.BanList = make([]Ban, 0)
 	this.adminCfg.SignList = make([]Admin, 0)
 	this.adminCfg.AdminList = make([]Admin, 0)
+	this.lastUsers = linkedhashmap.New()
 	this.port = 6567
 	this.mapMangePort = 6569
 	this.maxMapCount = 15
+	this.startTime = time.Now().Unix()
 	this.killCh = make(chan os.Signal)
 	this.loadConfig()
 	this.loadAdminConfig()
@@ -823,46 +850,96 @@ func (this *Mindustry) tenMinTask() {
 	}
 	this.isPlayerExistForTenMin = false
 }
-func (this *Mindustry) addUser(name string, uuid string) {
+
+var userMutex sync.RWMutex
+var lastUserMutex sync.RWMutex
+
+const MAX_LAST_USERS int = 500
+
+func (this *Mindustry) addUser(name string, uuid string, isAdmin bool, isSuop bool) {
+	u := User{name, uuid, getNowTime(), isAdmin, isSuop, 0}
 	if _, ok := this.users[uuid]; ok {
 		return
 	}
-	this.users[uuid] = User{name, uuid, false, false, 0}
+	userMutex.Lock()
+	this.users[uuid] = u
+	userMutex.Unlock()
+
+	lastUserMutex.Lock()
+	_, isExist := this.lastUsers.Get(uuid)
+	if !isExist && this.lastUsers.Size() >= MAX_LAST_USERS {
+		it := this.lastUsers.Iterator()
+		for it.Next() {
+			key := it.Key().(string)
+			if _, ok := this.users[key]; !ok {
+				this.lastUsers.Remove(key)
+				break
+			}
+		}
+	}
+	this.lastUsers.Put(uuid, u)
+	lastUserMutex.Unlock()
+
 	this.playCnt++
 	log.Printf("add user info :%s,playCnt:%d\n", name, this.playCnt)
 }
+func (this *Mindustry) getUserListForWeb(isOnline bool) (ret []User) {
+	ret = make([]User, 0)
+	if isOnline {
+		userMutex.RLock()
+		for _, user := range this.users {
+			ret = append(ret, user)
+		}
+		userMutex.RUnlock()
+	} else {
+		lastUserMutex.RLock()
+		it := this.lastUsers.Iterator()
+		for it.Next() {
+			ret = append(ret, it.Value().(User))
+		}
+		lastUserMutex.RUnlock()
+	}
+
+	return ret
+}
+
 func (this *Mindustry) onlineAdmin(uuid string) {
 	if _, ok := this.users[uuid]; !ok {
-		log.Printf("user %s not found\n", this.users[uuid].name)
+		log.Printf("user %s not found\n", this.users[uuid].Name)
 		return
 	}
 	tempUser := this.users[uuid]
-	tempUser.isAdmin = true
+	tempUser.IsAdmin = true
 	if tempUser.level < 1 {
 		tempUser.level = 1
 	}
 	this.users[uuid] = tempUser
-	log.Printf("online admin :%s\n", this.users[uuid].name)
+	log.Printf("online admin :%s\n", this.users[uuid].Name)
 }
 
 func (this *Mindustry) onlineSuperAdmin(uuid string) {
 	if _, ok := this.users[uuid]; !ok {
-		log.Printf("user %s not found\n", this.users[uuid].name)
+		log.Printf("user %s not found\n", this.users[uuid].Name)
 		return
 	}
 	tempUser := this.users[uuid]
-	tempUser.isAdmin = true
-	tempUser.isSuperAdmin = true
+	tempUser.IsAdmin = true
+	tempUser.IsSuperAdmin = true
 	if tempUser.level < 9 {
 		tempUser.level = 9
 	}
 	this.users[uuid] = tempUser
-	log.Printf("online superAdmin :%s\n", this.users[uuid].name)
+	log.Printf("online superAdmin :%s\n", this.users[uuid].Name)
 }
 
 func getNowDate() string {
 	return time.Now().Format("06-01-02")
 }
+
+func getNowTime() string {
+	return time.Now().Format("2006-01-02 15:04:05")
+}
+
 func (this *Mindustry) judgeAndUpdateAdmin(admin *Admin, name string, uuid string) (bool, bool) {
 	if admin.Name != name {
 		return false, false
@@ -929,8 +1006,8 @@ func (this *Mindustry) onlineUser(name string, uuid string) {
 	}
 	this.isPlayerExistForHour = true
 	this.isPlayerExistForTenMin = true
-	this.addUser(name, uuid)
 	role := this.getUserRole(name, uuid)
+	this.addUser(name, uuid, role == ADMIN, role == SUPER_ADMIN)
 	if role == SUPER_ADMIN {
 		this.onlineSuperAdmin(uuid)
 	} else if role == ADMIN {
@@ -953,7 +1030,20 @@ func (this *Mindustry) delUser(name string, uuid string) {
 	if this.playCnt > 0 {
 		this.playCnt--
 	}
+	userMutex.Lock()
 	delete(this.users, uuid)
+	userMutex.Unlock()
+	lastUserMutex.Lock()
+	oldU, isExist := this.lastUsers.Get(uuid)
+	if !isExist {
+		log.Printf("last user not exist :%s, uuid:%s\n", name, uuid)
+		lastUserMutex.Unlock()
+	}
+	updateUser := oldU.(User)
+	updateUser.OnlineTime = getNowTime()
+	this.lastUsers.Put(uuid, updateUser)
+	lastUserMutex.Unlock()
+
 	log.Printf("del user info :%s,playCnt:%d\n", name, this.playCnt)
 }
 func (this *Mindustry) execCmd(cmd string) {
@@ -1200,7 +1290,7 @@ func (this *Mindustry) denySign(userName string) bool {
 			gameName := admin.Name
 			this.adminCfg.SignList = append(this.adminCfg.SignList[:i], this.adminCfg.SignList[i+1:]...)
 			this.writeAdminConfig()
-			log.Printf("[INFO]deny sign,userName=%s,gameName=%s\n", userName, gameName)
+			log.Printf("[INFO]rmv sign,userName=%s,gameName=%s\n", userName, gameName)
 			return true
 		}
 	}
@@ -1349,9 +1439,9 @@ func (this *Mindustry) proc_help(uuid string, userInput string, isOnlyCheck bool
 		cmd := strings.TrimSpace(temps[1])
 		this.say("helps."+cmd, cmd)
 	} else {
-		if this.users[uuid].isSuperAdmin {
+		if this.users[uuid].IsSuperAdmin {
 			this.say("info.super_admin_cmd", this.cfgSuperAdminCmds)
-		} else if this.users[uuid].isAdmin {
+		} else if this.users[uuid].IsAdmin {
 			this.say("info.admin_cmd", this.cfgAdminCmds)
 		} else {
 			this.say("info.user_cmd", this.cfgNormCmds)
@@ -1398,7 +1488,7 @@ func (this *Mindustry) proc_admins(uuid string, userInput string, isOnlyCheck bo
 	if isOnlyCheck {
 		return true
 	}
-	isShowWarn := this.users[uuid].isSuperAdmin
+	isShowWarn := this.users[uuid].IsSuperAdmin
 	this.say("info.super_admin_list", this.getAdminList(this.adminCfg.SuperAdminList, isShowWarn))
 	this.say("info.admin_list", this.getAdminList(this.adminCfg.AdminList, isShowWarn))
 	return true
@@ -1426,14 +1516,15 @@ func (this *Mindustry) checkVote() (bool, int, int) {
 		if isAgree == 1 {
 			agreeCnt++
 		} else if _, ok := this.users[uuid]; ok {
-			if this.users[uuid].isAdmin {
+			if this.users[uuid].IsAdmin {
 				adminAgainstCnt++
 			}
 		}
 	}
-	if adminAgainstCnt > 0 {
-		return false, agreeCnt, adminAgainstCnt
-	}
+	// 取消管理员的否决权
+	//if adminAgainstCnt > 0 {
+	//	return false, agreeCnt, adminAgainstCnt
+	//}
 
 	return float32(agreeCnt)/float32(this.playCnt) >= 0.5, agreeCnt, adminAgainstCnt
 }
@@ -1578,6 +1669,15 @@ func (this *Mindustry) showStatus() {
 	this.say("curr mindustry version:%s, new mindustry version:%s", this.currMindustryVer, this.mindustryVersionInfo.CurrVer)
 	this.say("info.cpu_temperature", getCpuTemp())
 	this.say("info.status_show", this.fpsInfo)
+	this.gameStatus.NewVer = this.mindustryVersionInfo.CurrVer
+	this.gameStatus.CurrVer = this.currMindustryVer
+	this.gameStatus.ManagerVer = _VERSION_
+	this.gameStatus.CpuTemp = strconv.FormatFloat(getCpuTemp(), 'f', 2, 64) + "℃"
+	this.gameStatus.Fps = this.fpsInfo
+	this.gameStatus.Running = strconv.FormatBool(this.serverIsRun)
+	this.gameStatus.Online = strconv.Itoa(this.playCnt)
+	runTime := (float64(time.Now().Unix()) - float64(this.startTime)) / 3600
+	this.gameStatus.RunTime = strconv.FormatFloat(runTime, 'f', 2, 64) + "h"
 }
 func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 	index := -1
@@ -1694,6 +1794,38 @@ func (this *Mindustry) unbanUser(target string) {
 
 }
 
+const MAX_MESSAGE_CACHE int = 100
+
+var messageListMutex sync.RWMutex
+var messageId int
+
+func (this *Mindustry) appendChartMesaage(line string) {
+	messageListMutex.Lock()
+	if this.chartMessages.Len() > MAX_MESSAGE_CACHE {
+		this.chartMessages.Remove(this.chartMessages.Front())
+	}
+	newLine := strings.TrimSpace(line)
+	this.chartMessages.PushBack(Message{messageId, newLine})
+	messageId += 1
+	messageListMutex.Unlock()
+}
+func (this *Mindustry) getChartMesaage(begin int) (ret []Message) {
+	ret = make([]Message, 0)
+	messageListMutex.RLock()
+	if begin >= messageId {
+		messageListMutex.RUnlock()
+		return ret
+	}
+	for p := this.chartMessages.Front(); p != nil; p = p.Next() {
+		v := p.Value.(Message)
+		if v.Id >= begin {
+			ret = append(ret, v)
+		}
+	}
+	messageListMutex.RUnlock()
+	return ret
+}
+
 func (this *Mindustry) output(line string) {
 	index := strings.Index(line, SERVER_ERR_LOG)
 	if index >= 0 {
@@ -1711,6 +1843,13 @@ func (this *Mindustry) output(line string) {
 		return
 	}
 	cmdBody := strings.TrimSpace(line[index+len(SERVER_INFO_LOG):])
+	index = strings.Index(cmdBody, ":")
+	if index > -1 {
+		userName := strings.TrimSpace(cmdBody[:index])
+		if userName == "Server" || this.getUserId(userName) != "" {
+			this.appendChartMesaage(line)
+		}
+	}
 	if this.currProcCmd == "maps" || this.currProcCmd == "status" {
 		//this.say( line)
 		if this.multiLineRsltCmdComplete(cmdBody) {
@@ -1732,6 +1871,13 @@ func (this *Mindustry) output(line string) {
 		log.Printf("BanIpId:%s,%s,%s\n", banIpId[2], banIpId[3], banIpId[1])
 		return
 	}
+	banId := BAN_REG_ID.FindStringSubmatch(cmdBody)
+	if banId != nil {
+		this.currBanList.BanList = append(this.currBanList.BanList, Ban{banId[2], banId[1], "", "", ""})
+		log.Printf("BanId:%s,%s\n", banId[1], banId[2])
+		return
+	}
+
 	banIp := BAN_REG_IP.FindStringSubmatch(cmdBody)
 	if banIp != nil {
 		this.currBanList.BanList = append(this.currBanList.BanList, Ban{"", "", banIp[1], "", ""})
@@ -1749,7 +1895,6 @@ func (this *Mindustry) output(line string) {
 		return
 	}
 
-	index = strings.Index(cmdBody, ":")
 	if index > -1 && !strings.HasPrefix(cmdBody, "Server:") {
 		userName := strings.TrimSpace(cmdBody[:index])
 		uuid := this.getUserId(userName)
@@ -1785,16 +1930,19 @@ func (this *Mindustry) output(line string) {
 			log.Printf("[%s] invalid\n", cmdBody)
 			return
 		}
-		if userName == "Server" {
+		lowName := strings.ToLower(userName)
+		findIndex1 := strings.Index(lowName, "server")
+		findIndex2 := strings.Index(lowName, "5erver")
+		if findIndex1 > -1 || findIndex2 > -1 {
 			this.say("error.login_forbbidden_username")
 			this.execCmd("kick " + userName)
 			return
 		}
 		this.onlineUser(userName, uuid)
 
-		if this.users[uuid].isAdmin {
+		if this.users[uuid].IsAdmin {
 			time.Sleep(1 * time.Second)
-			if this.users[uuid].isSuperAdmin {
+			if this.users[uuid].IsSuperAdmin {
 				this.say("info.welcom_super_admin", userName)
 			} else {
 				this.say("info.welcom_admin", userName)
@@ -1833,6 +1981,7 @@ func (this *Mindustry) output(line string) {
 		if this.firstIsStart {
 			this.serverIsStart = true
 			this.firstIsStart = false
+			this.gameStatus.Running = "true"
 		}
 		this.serverIsRun = true
 		this.playCnt = 0

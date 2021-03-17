@@ -69,6 +69,8 @@ func StartFileUpServer(mindustryServer *Mindustry) {
 	mux.Handle("/resetUuid", http.HandlerFunc(handleResetUuidRequest))
 	mux.Handle("/admins", http.HandlerFunc(handleAdminsRequest))
 	mux.Handle("/blacklist", http.HandlerFunc(handleBlackListRequest))
+	mux.Handle("/status", http.HandlerFunc(handleStatusRequest))
+	mux.Handle("/maintain", http.HandlerFunc(handleMaintainRequest))
 
 	for url, _ := range url2path {
 		mux.Handle(url, mh)
@@ -222,13 +224,14 @@ func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		query := r.URL.Query()
-		if !authRequest(w, query.Get("username"), query.Get("sessionid")) {
+		userName := query.Get("username")
+		if !authRequest(w, userName, query.Get("sessionid")) {
 			return
 		}
 
 		unbanTarget := query.Get("unban")
 		if unbanTarget != "" {
-			fmt.Println("Req unban:" + unbanTarget)
+			fmt.Println("(" + userName + ")Req unban:" + unbanTarget)
 			m_mindustryServer.execCmd("unban " + unbanTarget)
 			Response(w, RSP_SUCC)
 			return
@@ -304,6 +307,81 @@ func handleSignList(w http.ResponseWriter, r *http.Request) {
 		Response(w, RSP_FAIL)
 	}
 }
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+func handleMaintainRequest(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		query := r.URL.Query()
+		userName := query.Get("username")
+		sessionId := query.Get("sessionid")
+		if !authRequest(w, userName, sessionId) {
+			return
+		}
+		say := query.Get("say")
+		reboot := query.Get("reboot")
+		isSop := m_mindustryServer.webLoginIsSop(userName)
+		if (reboot != "") && !isSop {
+			Response(w, "user not is super admin")
+			return
+		}
+		if say != "" {
+			maxLen := min(len(say), 100)
+			say = "(" + userName + ") " + say[0:maxLen-1]
+			m_mindustryServer.say(say)
+			Response(w, RSP_SUCC)
+			return
+		}
+
+		messageQuery := query.Get("chatMessage")
+		if messageQuery != "" {
+			ret := make([]Message, 0)
+			begin, error := strconv.Atoi(messageQuery)
+			if error == nil {
+				ret = m_mindustryServer.getChartMesaage(begin)
+			} else {
+				fmt.Println("chatMessage para invalid:" + messageQuery)
+			}
+			output, err1 := json.MarshalIndent(ret, "", "\t\t")
+			if err1 != nil {
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(output)
+			return
+		}
+		userQuery := query.Get("users")
+		if userQuery != "" {
+			ret := make([]User, 0)
+			isOnline, error := strconv.Atoi(userQuery)
+			if error == nil {
+				ret = m_mindustryServer.getUserListForWeb(isOnline == 1)
+			} else {
+				fmt.Println("userQuery para invalid:" + userQuery)
+			}
+			output, err1 := json.MarshalIndent(ret, "", "\t\t")
+			if err1 != nil {
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(output)
+			return
+		}
+
+		banTarget := query.Get("ban")
+		if banTarget != "" {
+			fmt.Println("(" + userName + ")Req ban:" + banTarget)
+			m_mindustryServer.execCmd("ban id " + banTarget)
+			Response(w, RSP_SUCC)
+			return
+		}
+
+	}
+}
 
 func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("handleAdminsRequest url:" + r.URL.Path)
@@ -337,7 +415,11 @@ func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
 		adminList := make([]Admin, len(m_mindustryServer.adminCfg.AdminList))
 		copy(adminList, m_mindustryServer.adminCfg.AdminList)
 		for i, _ := range adminList {
-			adminList[i].Id = ""
+			if adminList[i].Id != "" {
+				adminList[i].Id = "true"
+			} else {
+				adminList[i].Id = "false"
+			}
 		}
 		output, err1 := json.MarshalIndent(adminList, "", "\t\t")
 		if err1 != nil {
@@ -348,6 +430,19 @@ func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	case "POST":
 		Response(w, RSP_FAIL)
+	}
+}
+func handleStatusRequest(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("handleStatusRequest url:" + r.URL.Path)
+	switch r.Method {
+	case "GET":
+		output, err1 := json.MarshalIndent(m_mindustryServer.gameStatus, "", "\t\t")
+		if err1 != nil {
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(output)
+		return
 	}
 }
 
