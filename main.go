@@ -102,13 +102,15 @@ type MindustryVersionInfo struct {
 
 type GameStatus struct {
 	CurrVer    string `json:"curr_ver"`
-	NewVer     string `json:"nwe_ver"`
+	NewVer     string `json:"new_ver"`
 	ManagerVer string `json:"manager_ver"`
 	CpuTemp    string `json:"cpuTemp"`
 	Fps        string `json:"fps"`
 	Online     string `json:"online"`
 	Running    string `json:"running"`
 	RunTime    string `json:"run_time"`
+	Map        string `json:"map"`
+	Wave       string `json:"wave"`
 }
 
 type User struct {
@@ -1669,6 +1671,15 @@ func (this *Mindustry) showStatus() {
 	this.say("curr mindustry version:%s, new mindustry version:%s", this.currMindustryVer, this.mindustryVersionInfo.CurrVer)
 	this.say("info.cpu_temperature", getCpuTemp())
 	this.say("info.status_show", this.fpsInfo)
+}
+
+var lastUpdateTime int64 = 0
+
+func (this *Mindustry) updateStatus() {
+	currTime := time.Now().Unix()
+	if currTime-10 < lastUpdateTime {
+		return
+	}
 	this.gameStatus.NewVer = this.mindustryVersionInfo.CurrVer
 	this.gameStatus.CurrVer = this.currMindustryVer
 	this.gameStatus.ManagerVer = _VERSION_
@@ -1676,9 +1687,10 @@ func (this *Mindustry) showStatus() {
 	this.gameStatus.Fps = this.fpsInfo
 	this.gameStatus.Running = strconv.FormatBool(this.serverIsRun)
 	this.gameStatus.Online = strconv.Itoa(this.playCnt)
-	runTime := (float64(time.Now().Unix()) - float64(this.startTime)) / 3600
+	runTime := (float64(currTime) - float64(this.startTime)) / 3600
 	this.gameStatus.RunTime = strconv.FormatFloat(runTime, 'f', 2, 64) + "h"
 }
+
 func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 	index := -1
 	if this.currProcCmd == "maps" {
@@ -1826,6 +1838,8 @@ func (this *Mindustry) getChartMesaage(begin int) (ret []Message) {
 	return ret
 }
 
+var MAP_WAVE_REG = regexp.MustCompile("Playing\\son\\smap\\s(.+)/\\sWave\\s(\\d+)")
+
 func (this *Mindustry) output(line string) {
 	index := strings.Index(line, SERVER_ERR_LOG)
 	if index >= 0 {
@@ -1850,6 +1864,13 @@ func (this *Mindustry) output(line string) {
 			this.appendChartMesaage(line)
 		}
 	}
+	mapWave := MAP_WAVE_REG.FindStringSubmatch(cmdBody)
+	if mapWave != nil {
+		this.gameStatus.Map = strings.TrimSpace(mapWave[1])
+		this.gameStatus.Wave = mapWave[2]
+		return
+	}
+
 	if this.currProcCmd == "maps" || this.currProcCmd == "status" {
 		//this.say( line)
 		if this.multiLineRsltCmdComplete(cmdBody) {

@@ -436,6 +436,7 @@ func handleStatusRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("handleStatusRequest url:" + r.URL.Path)
 	switch r.Method {
 	case "GET":
+		m_mindustryServer.updateStatus()
 		output, err1 := json.MarshalIndent(m_mindustryServer.gameStatus, "", "\t\t")
 		if err1 != nil {
 			return
