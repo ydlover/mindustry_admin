@@ -360,9 +360,9 @@ func handleMaintainRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		messageQuery = query.Get("messageBoard")
-		if messageQuery != "" {
-			responseMessageQuery(m_mindustryServer.messageBoard, messageQuery, w, r)
+		messageBoard := query.Get("messageBoard")
+		if messageBoard != "" {
+			responseMessageQuery(m_mindustryServer.messageBoard, messageBoard, w, r)
 			return
 		}
 

@@ -53,6 +53,9 @@ type Message struct {
 	Message string `json:"message"`
 	Time    string `json:"time"`
 }
+type HistoryMessages struct {
+	Messages []Message `json:"mesaages"`
+}
 
 const MAX_MESSAGE_CACHE int = 100
 
@@ -71,32 +74,50 @@ func (this *MessageManager) loadHistory(fileName string) {
 		log.Printf("[ERR]Not found message_board.json!\n")
 		return
 	}
-	err = json.Unmarshal(data, &this.messages)
+	history := new(HistoryMessages)
+	history.Messages = make([]Message, 0)
+	err = json.Unmarshal(data, history)
 	if err != nil {
-		log.Printf("[ERR]Load history fail:%s!\n", fileName)
+		log.Printf("[ERR]Load history fail:%s,err:%v!\n", fileName, err)
+		return
+	}
+	log.Printf("[INFO]Load history message board:%d!\n", len(history.Messages))
+	for _, m := range history.Messages {
+		this.messages.PushBack(m)
+		this.messageId += 1
 	}
 }
 
 func (this *MessageManager) init(max int) {
 	this.max = max
 }
-func (this *MessageManager) appendMessage(line string) {
-	this.messageListMutex.Lock()
-	if this.messages.Len() > this.max {
-		this.messages.Remove(this.messages.Front())
-	}
-	newLine := strings.TrimSpace(line)
-	this.messages.PushBack(Message{this.messageId, newLine, getNowTime()})
-	this.messageId += 1
-	this.messageListMutex.Unlock()
+func (this *MessageManager) saveToFile() {
+	// 只有留言板才支持持久化
 	if this.historyFileName != "" {
-		data, err := json.MarshalIndent(this.messages, "", "    ")
+		messages := this.getMessage(0)
+		history := new(HistoryMessages)
+		history.Messages = make([]Message, len(messages))
+		copy(history.Messages, messages)
+		data, err := json.MarshalIndent(history, "", "    ")
 		if err != nil {
 			log.Println("[ERR]writeAdminCfg fail:", err)
 			return
 		}
 		WriteConfig(this.historyFileName, data)
 	}
+
+}
+
+func (this *MessageManager) appendMessage(line string) {
+	this.messageListMutex.Lock()
+	if this.messages.Len() > this.max {
+		this.messages.Remove(this.messages.Front())
+	}
+	newLine := strings.TrimSpace(line)
+	this.messageId += 1
+	this.messages.PushBack(Message{this.messageId, newLine, getNowTime()})
+	this.messageListMutex.Unlock()
+	this.saveToFile()
 }
 
 func (this *MessageManager) getMessage(begin int) (ret []Message) {
