@@ -85,14 +85,14 @@ func StartFileUpServer(mindustryServer *Mindustry) {
 		signal.Notify(c, os.Interrupt, os.Kill)
 		s := <-c
 		server.Close()
-		fmt.Printf("file up server shutdownf%s", s)
+		fmt.Printf("file up server shutdown%s", s)
 	}()
 	m_mindustryServer = mindustryServer
 	server.ListenAndServe()
 }
 
 func authRequest(w http.ResponseWriter, userName string, sessionId string) bool {
-	fmt.Printf("auth:username=%s,sessionId=%s\n", userName, sessionId)
+	//fmt.Printf("auth:username=%s,sessionId=%s\n", userName, sessionId)
 	if m_mindustryServer.webLoginSessionChk(userName, sessionId) {
 		return true
 	}
@@ -313,6 +313,23 @@ func min(a, b int) int {
 	}
 	return b
 }
+func responseMessageQuery(m *MessageManager, query string, w http.ResponseWriter, r *http.Request) {
+	ret := make([]Message, 0)
+	begin, error := strconv.Atoi(query)
+	if error == nil {
+		ret = m.getMessage(begin)
+	} else {
+		fmt.Println("chatMessage para invalid:" + query)
+	}
+	output, err1 := json.MarshalIndent(ret, "", "\t\t")
+	if err1 != nil {
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(output)
+	return
+}
+
 func handleMaintainRequest(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
@@ -331,29 +348,24 @@ func handleMaintainRequest(w http.ResponseWriter, r *http.Request) {
 		}
 		if say != "" {
 			maxLen := min(len(say), 100)
-			say = "(" + userName + ") " + say[0:maxLen-1]
-			m_mindustryServer.say(say)
+			say = say[0 : maxLen-1]
+			m_mindustryServer.webMessageProc(userName, say)
 			Response(w, RSP_SUCC)
 			return
 		}
 
 		messageQuery := query.Get("chatMessage")
 		if messageQuery != "" {
-			ret := make([]Message, 0)
-			begin, error := strconv.Atoi(messageQuery)
-			if error == nil {
-				ret = m_mindustryServer.getChartMesaage(begin)
-			} else {
-				fmt.Println("chatMessage para invalid:" + messageQuery)
-			}
-			output, err1 := json.MarshalIndent(ret, "", "\t\t")
-			if err1 != nil {
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			w.Write(output)
+			responseMessageQuery(m_mindustryServer.chartMessages, messageQuery, w, r)
 			return
 		}
+
+		messageQuery = query.Get("messageBoard")
+		if messageQuery != "" {
+			responseMessageQuery(m_mindustryServer.messageBoard, messageQuery, w, r)
+			return
+		}
+
 		userQuery := query.Get("users")
 		if userQuery != "" {
 			ret := make([]User, 0)
@@ -488,9 +500,6 @@ func handleFilesRequest(w http.ResponseWriter, r *http.Request) {
 func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (err error) {
 	//fmt.Println("GET: " + r.URL.Path)
 	query := r.URL.Query()
-	if !authRequest(w, query.Get("username"), query.Get("sessionid")) {
-		return
-	}
 	delFile := query.Get("delete")
 	downFile := query.Get("download")
 	if downFile != "" {
@@ -503,6 +512,10 @@ func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (
 		return
 	}
 	if delFile != "" {
+		if !authRequest(w, query.Get("username"), query.Get("sessionid")) {
+			return
+		}
+
 		fmt.Println("DELETE: " + url2path[requestUrl] + delFile)
 		err = os.Remove(url2path[requestUrl] + delFile)
 		if err != nil {

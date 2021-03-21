@@ -46,10 +46,80 @@ func StripColor(str string) string {
 	return re.ReplaceAllString(str, "")
 }
 
-type UserCmdProcHandle func(uuid string, userInput string, isOnlyCheck bool) bool
+type UserCmdProcHandle func(uuid string, userName string, userInput string, isOnlyCheck bool) bool
+
+type Message struct {
+	Id      int    `json:"id"`
+	Message string `json:"message"`
+	Time    string `json:"time"`
+}
+
+const MAX_MESSAGE_CACHE int = 100
+
+type MessageManager struct {
+	messageListMutex sync.RWMutex
+	messageId        int
+	max              int
+	messages         list.List
+	historyFileName  string
+}
+
+func (this *MessageManager) loadHistory(fileName string) {
+	this.historyFileName = fileName
+	data, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		log.Printf("[ERR]Not found message_board.json!\n")
+		return
+	}
+	err = json.Unmarshal(data, &this.messages)
+	if err != nil {
+		log.Printf("[ERR]Load history fail:%s!\n", fileName)
+	}
+}
+
+func (this *MessageManager) init(max int) {
+	this.max = max
+}
+func (this *MessageManager) appendMessage(line string) {
+	this.messageListMutex.Lock()
+	if this.messages.Len() > this.max {
+		this.messages.Remove(this.messages.Front())
+	}
+	newLine := strings.TrimSpace(line)
+	this.messages.PushBack(Message{this.messageId, newLine, getNowTime()})
+	this.messageId += 1
+	this.messageListMutex.Unlock()
+	if this.historyFileName != "" {
+		data, err := json.MarshalIndent(this.messages, "", "    ")
+		if err != nil {
+			log.Println("[ERR]writeAdminCfg fail:", err)
+			return
+		}
+		WriteConfig(this.historyFileName, data)
+	}
+}
+
+func (this *MessageManager) getMessage(begin int) (ret []Message) {
+	ret = make([]Message, 0)
+	this.messageListMutex.RLock()
+	if begin >= this.messageId {
+		this.messageListMutex.RUnlock()
+		return ret
+	}
+	for p := this.messages.Front(); p != nil; p = p.Next() {
+		v := p.Value.(Message)
+		if v.Id >= begin {
+			ret = append(ret, v)
+		}
+	}
+	this.messageListMutex.RUnlock()
+	return ret
+}
 
 type Admin struct {
-	UserName     string `json:"userName"`
+	// web app username
+	UserName string `json:"userName"`
+	// game name
 	Name         string `json:"name"`
 	Id           string `json:"id"`
 	Passwd       string `json:"passwd"`
@@ -57,6 +127,7 @@ type Admin struct {
 	LastVistTime string `json:"last vist time"`
 	onlineTime   int64  `json:"online time"`
 	sessionId    string `json:"sessionId"`
+	level        int
 }
 type AdminCfg struct {
 	SuperAdminList []Admin `json:"super admin"`
@@ -80,11 +151,6 @@ type Assets struct {
 	UpdatedAt          string `json:"updated_at"`
 	Size               int64  `json:"size"`
 	BrowserDownloadUrl string `json:"browser_download_url"`
-}
-
-type Message struct {
-	Id      int    `json:"id"`
-	Message string `json:"message"`
 }
 
 type GithubReleasesLatestApi struct {
@@ -154,9 +220,8 @@ type Mindustry struct {
 	userCmdProcHandles     map[string]UserCmdProcHandle
 	l                      *lingo.L
 	i18n                   lingo.T
-	banCfg                 string
-	remoteBanCfg           *BanCfg
 	currBanList            *BanCfg
+	tmpBanList             *BanCfg
 	m_isPermitMapModify    bool
 	isShowDefaultMapInMaps bool
 	mapMangePort           int
@@ -177,7 +242,8 @@ type Mindustry struct {
 	mindustryVersionInfo   *MindustryVersionInfo
 	gameStatus             *GameStatus
 	startTime              int64
-	chartMessages          list.List
+	chartMessages          *MessageManager
+	messageBoard           *MessageManager
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -212,94 +278,24 @@ func (this *Mindustry) getUserId(name string) string {
 	return ""
 }
 
-func findInBan(banCfgList []Ban, id string) bool {
+func findInBan(banCfgList []Ban, u *Ban) bool {
 	for _, currBan := range banCfgList {
-		if id == currBan.Id {
+		if u.Id == currBan.Id && u.Name == currBan.Name && u.Ip == currBan.Ip {
 			return true
 		}
 	}
 	return false
 }
-func (this *Mindustry) netBan() {
-	if this.banCfg == "" {
+func (this *Mindustry) loadBan() {
+	data, err := ioutil.ReadFile("bans.json")
+	if err != nil {
+		log.Printf("[ERR]Not found bans.json!\n")
 		return
 	}
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			Dial: func(netw, addr string) (net.Conn, error) {
-				deadline := time.Now().Add(5 * time.Second)
-				c, err := net.DialTimeout(netw, addr, time.Second*5)
-				if err != nil {
-					return nil, err
-				}
-				c.SetDeadline(deadline)
-				return c, nil
-			},
-		},
+	err = json.Unmarshal(data, &this.currBanList)
+	if err != nil {
+		log.Printf("[ERR]Load banb cfg fail!\n")
 	}
-	request, netErr := http.NewRequest("GET", this.banCfg, nil)
-	if netErr != nil {
-		log.Printf("[ERR]Load remote banb cfg fail:%s,netError:%v!\n", this.banCfg, netErr)
-		return
-	}
-	response, responseErr := client.Do(request)
-	if responseErr != nil {
-		log.Printf("[ERR]Load remote banb cfg fail:%s,netError:%v!\n", this.banCfg, responseErr)
-		return
-	}
-	if response.StatusCode == 200 {
-		body, err := ioutil.ReadAll(response.Body)
-		if err != nil {
-			log.Printf("[ERR]Load remote banb cfg io fail:%s!\n", this.banCfg)
-			return
-		}
-		var currRemoteBanCfg = BanCfg{}
-		err = json.Unmarshal(body, &currRemoteBanCfg)
-		if err != nil {
-			log.Printf("[ERR]Load remote banb cfg fail:%s!\n", this.banCfg)
-			return
-		}
-		isSame := true
-		if len(this.remoteBanCfg.BanList) == len(currRemoteBanCfg.BanList) {
-			for _, remoteBan := range this.remoteBanCfg.BanList {
-				if !findInBan(currRemoteBanCfg.BanList, remoteBan.Id) {
-					isSame = false
-					break
-				}
-			}
-		} else {
-			isSame = false
-		}
-		if isSame {
-			return
-		}
-		var unbanList []string
-		var banList []string
-		unbanList = make([]string, 0)
-		banList = make([]string, 0)
-		for _, remoteBan := range this.remoteBanCfg.BanList {
-			if !findInBan(currRemoteBanCfg.BanList, remoteBan.Id) {
-				unbanList = append(unbanList, remoteBan.Id)
-			}
-		}
-
-		for _, currBan := range currRemoteBanCfg.BanList {
-			if !findInBan(this.remoteBanCfg.BanList, currBan.Id) {
-				banList = append(banList, currBan.Id)
-			}
-		}
-		for _, id := range unbanList {
-			this.execCmd("unban " + id)
-		}
-		for _, id := range banList {
-			this.execCmd("ban id " + id)
-		}
-		*this.remoteBanCfg = currRemoteBanCfg
-	} else {
-		log.Printf("[ERR]Load remote banb cfg fail:%s,remote response:%d!\n", this.banCfg, response.StatusCode)
-	}
-
 }
 
 func (this *Mindustry) downloadUrl(remoteUrl string, localFileName string, size int64) bool {
@@ -446,9 +442,11 @@ func (this *Mindustry) loadAdminConfig() {
 	}
 	for _, admin := range this.adminCfg.SuperAdminList {
 		log.Printf("SuperAdmin:%s(%s)\n", admin.Name, admin.Id)
+		admin.level = 9
 	}
 	for _, admin := range this.adminCfg.AdminList {
 		log.Printf("Admin:%s(%s)\n", admin.Name, admin.Id)
+		admin.level = 1
 	}
 }
 func WriteConfig(cfg string, jsonByte []byte) {
@@ -565,12 +563,6 @@ func (this *Mindustry) loadConfig() {
 				log.Printf("[ini]lanage cfg invalid,use english\n")
 			}
 
-			optionValue, err = cfg.String("server", "banCfg")
-			if err == nil {
-				banCfg := strings.TrimSpace(optionValue)
-				this.banCfg = banCfg
-				log.Printf("[ini]banCfg:%s\n", this.banCfg)
-			}
 			optionValue, err = cfg.String("server", "isShowDefaultMapInMaps")
 			if err == nil {
 				this.isShowDefaultMapInMaps = strings.TrimSpace(optionValue) == "1"
@@ -609,7 +601,7 @@ func (this *Mindustry) loadConfig() {
 
 		}
 	}
-
+	this.loadBan()
 }
 
 func (this *Mindustry) loadMindustryVersionInfoCfg() {
@@ -657,6 +649,11 @@ func (this *Mindustry) initStatus() {
 	this.isNeedRestartForUpdate = false
 }
 func (this *Mindustry) init() {
+	this.chartMessages = new(MessageManager)
+	this.chartMessages.init(MAX_MESSAGE_CACHE)
+	this.messageBoard = new(MessageManager)
+	this.messageBoard.init(MAX_MESSAGE_CACHE)
+	this.messageBoard.loadHistory("message_board.json")
 	this.serverOutR, _ = regexp.Compile(".*(\\[INFO\\]|\\[ERR\\])(.*)")
 	this.cmds = make(map[string]Cmd)
 	this.cmdHelps = make(map[string]string)
@@ -671,7 +668,7 @@ func (this *Mindustry) init() {
 	this.serverIsStart = false
 	this.c = cron.New()
 	this.adminCfg = new(AdminCfg)
-	this.remoteBanCfg = new(BanCfg)
+	this.tmpBanList = new(BanCfg)
 	this.currBanList = new(BanCfg)
 	this.gameStatus = new(GameStatus)
 	this.currBanList.BanList = make([]Ban, 0)
@@ -818,7 +815,6 @@ func (this *Mindustry) hourTask() {
 	if this.serverIsRun {
 		this.execCmd("save " + strconv.Itoa(hour))
 		this.say("info.auto_save", hour)
-		this.netBan()
 		this.execCmd("bans")
 	} else {
 		log.Printf("game is not running.\n")
@@ -847,7 +843,7 @@ func (this *Mindustry) tenMinTask() {
 		} else {
 			log.Printf("update game status.\n")
 			this.isInGameCmd = false
-			this.proc_status("Server", "status", false)
+			this.proc_status("", "Server", "status", false)
 		}
 	}
 	this.isPlayerExistForTenMin = false
@@ -1100,7 +1096,7 @@ func (this *Mindustry) cmdWaitTimeout(uuid string, userInput string, cmdName str
 	this.currProcCmd = cmdName
 }
 
-func (this *Mindustry) proc_maps(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_maps(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
@@ -1110,7 +1106,7 @@ func (this *Mindustry) proc_maps(uuid string, userInput string, isOnlyCheck bool
 	this.execCmd("maps")
 	return true
 }
-func (this *Mindustry) proc_status(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_status(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
@@ -1119,7 +1115,7 @@ func (this *Mindustry) proc_status(uuid string, userInput string, isOnlyCheck bo
 
 	return true
 }
-func (this *Mindustry) proc_host(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_host(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	mapName := ""
 	temps := strings.Split(userInput, " ")
 	if len(temps) < 2 {
@@ -1197,7 +1193,7 @@ func (this *Mindustry) proc_host(uuid string, userInput string, isOnlyCheck bool
 	return true
 }
 
-func (this *Mindustry) proc_save(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_save(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	targetSlot := ""
 	if userInput == "save" {
 		minute := time.Now().Minute()
@@ -1218,7 +1214,7 @@ func (this *Mindustry) proc_save(uuid string, userInput string, isOnlyCheck bool
 	return true
 }
 
-func (this *Mindustry) proc_load(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_load(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	targetSlot := userInput[len("load"):]
 	targetSlot = strings.TrimSpace(targetSlot)
 	if !checkSlotValid(targetSlot) {
@@ -1326,7 +1322,7 @@ func (this *Mindustry) regAdmin(userName string, gameName string, passwd string,
 
 	cryPasswd := cryptoMd5(passwd)
 	nowTime := time.Now().Format("2006-01-02 15:04:05")
-	newAdmin := Admin{userName, gameName, "", cryPasswd, contact, nowTime, 0, ""}
+	newAdmin := Admin{userName, gameName, "", cryPasswd, contact, nowTime, 0, "", 1}
 	this.adminCfg.SignList = append(this.adminCfg.SignList, newAdmin)
 	this.writeAdminConfig()
 	log.Printf("[INFO]regAdmin,userName=%s,gameName=%s\n", userName, gameName)
@@ -1377,7 +1373,7 @@ func (this *Mindustry) webLoginSessionChk(userName string, sessionId string) boo
 		admin.onlineTime = time.Now().Unix()
 		return true
 	}
-	log.Printf("[INFO]web login,not found session, userName=%s, sessionId", userName, sessionId)
+	//log.Printf("[INFO]web login,not found session, userName=%s, sessionId=%s", userName, sessionId)
 	return false
 }
 
@@ -1417,14 +1413,14 @@ func (this *Mindustry) webLoginIsSop(userName string) bool {
 	return false
 }
 
-func (this *Mindustry) proc_directCmd(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_directCmd(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
 	this.execCmd(userInput)
 	return true
 }
-func (this *Mindustry) proc_gameover(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_gameover(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
@@ -1432,7 +1428,7 @@ func (this *Mindustry) proc_gameover(uuid string, userInput string, isOnlyCheck 
 	this.execCmd(userInput)
 	return true
 }
-func (this *Mindustry) proc_help(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_help(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
@@ -1441,7 +1437,7 @@ func (this *Mindustry) proc_help(uuid string, userInput string, isOnlyCheck bool
 		cmd := strings.TrimSpace(temps[1])
 		this.say("helps."+cmd, cmd)
 	} else {
-		if this.users[uuid].IsSuperAdmin {
+		if this.isSuop(uuid, userName) {
 			this.say("info.super_admin_cmd", this.cfgSuperAdminCmds)
 		} else if this.users[uuid].IsAdmin {
 			this.say("info.admin_cmd", this.cfgAdminCmds)
@@ -1478,26 +1474,26 @@ func getCpuTemp() float64 {
 	//debug.Printf("CPU temperature: %.3f°C", cpuTemp)
 	return cpuTemp
 }
-func (this *Mindustry) proc_show(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_show(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
-	this.proc_status(uuid, userInput, false)
+	this.proc_status(uuid, userName, userInput, false)
 
 	return true
 }
-func (this *Mindustry) proc_admins(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_admins(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
-	isShowWarn := this.users[uuid].IsSuperAdmin
+	isShowWarn := this.isSuop(uuid, userName)
 	this.say("info.super_admin_list", this.getAdminList(this.adminCfg.SuperAdminList, isShowWarn))
 	this.say("info.admin_list", this.getAdminList(this.adminCfg.AdminList, isShowWarn))
 	return true
 
 }
 
-func (this *Mindustry) proc_slots(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_slots(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	if isOnlyCheck {
 		return true
 	}
@@ -1530,7 +1526,7 @@ func (this *Mindustry) checkVote() (bool, int, int) {
 
 	return float32(agreeCnt)/float32(this.playCnt) >= 0.5, agreeCnt, adminAgainstCnt
 }
-func (this *Mindustry) proc_votetick(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_votetick(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	index := strings.Index(userInput, " ")
 	if index < 0 {
 		this.say("error.cmd_votetick_target_invalid", userInput)
@@ -1561,7 +1557,7 @@ func (this *Mindustry) proc_votetick(uuid string, userInput string, isOnlyCheck 
 	if tempHandleFunc, ok := this.userCmdProcHandles[votetickCmdHead]; ok {
 		handleFunc = tempHandleFunc
 	}
-	checkRslt := handleFunc(uuid, votetickCmd, true)
+	checkRslt := handleFunc(uuid, userName, votetickCmd, true)
 	if !checkRslt {
 		log.Printf("precheck vote cmd [%s] fail\n", votetickCmd)
 		return false
@@ -1579,7 +1575,7 @@ func (this *Mindustry) proc_votetick(uuid string, userInput string, isOnlyCheck 
 		isSucc, agreeCnt, adminAgainstCnt := this.checkVote()
 		if isSucc {
 			this.say("info.votetick_pass", this.playCnt, agreeCnt)
-			handleFunc(uuid, votetickCmd, false)
+			handleFunc(uuid, userName, votetickCmd, false)
 		} else {
 			this.say("info.votetick_fail", this.playCnt, agreeCnt, adminAgainstCnt)
 		}
@@ -1596,7 +1592,7 @@ func checkMode(inputMode string) bool {
 	}
 	return true
 }
-func (this *Mindustry) proc_mode(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_mode(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	temps := strings.Split(userInput, " ")
 	if len(temps) < 2 {
 		this.say("info.mode_show", this.mode)
@@ -1623,7 +1619,7 @@ func (this *Mindustry) proc_mode(uuid string, userInput string, isOnlyCheck bool
 	return true
 }
 
-func (this *Mindustry) proc_mapManage(uuid string, userInput string, isOnlyCheck bool) bool {
+func (this *Mindustry) proc_mapManage(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	if this.m_isPermitMapModify {
 		this.say("error.cmd_mapManage_started")
 		return false
@@ -1641,12 +1637,53 @@ func (this *Mindustry) proc_mapManage(uuid string, userInput string, isOnlyCheck
 	}()
 	return true
 }
-func (this *Mindustry) procUsrCmd(uuid string, userInput string) {
+func (this *Mindustry) getUserLevel(uuid string, userName string) int {
+	if userName != "" {
+		admin := this.getAdmin(userName)
+		if admin != nil {
+			return admin.level
+		} else {
+			log.Printf("admin not found [%s]\n", userName)
+			return 0
+		}
+	}
+	return this.users[uuid].level
+}
+func (this *Mindustry) getGameName(uuid string, userName string) string {
+	if userName != "" {
+		admin := this.getAdmin(userName)
+		if admin != nil {
+			return admin.Name
+		} else {
+			log.Printf("admin not found [%s]\n", userName)
+			return ""
+		}
+	}
+	return this.users[uuid].Name
+}
+func (this *Mindustry) isSuop(uuid string, userName string) bool {
+	if userName != "" {
+		admin := this.getAdmin(userName)
+		if admin != nil {
+			return admin.level == 9
+		} else {
+			log.Printf("admin not found [%s]\n", userName)
+			return false
+		}
+	}
+	return this.users[uuid].IsSuperAdmin
+}
+
+func (this *Mindustry) procUsrCmd(uuid string, userName string, userInput string) {
 	temps := strings.Split(userInput, " ")
 	cmdName := temps[0]
-
+	if userName != "" {
+		log.Printf("admin [%s] exec cmd [%s]\n", userName, userInput)
+	} else {
+		log.Printf("user [%s] exec cmd [%s]\n", this.users[uuid].Name, userInput)
+	}
 	if cmd, ok := this.cmds[cmdName]; ok {
-		if this.users[uuid].level < cmd.level {
+		if this.getUserLevel(uuid, userName) < cmd.level {
 			this.say("error.cmd_permission_denied", cmdName)
 			return
 		} else {
@@ -1656,9 +1693,9 @@ func (this *Mindustry) procUsrCmd(uuid string, userInput string) {
 			}
 			this.isInGameCmd = true
 			if handleFunc, ok := this.userCmdProcHandles[cmdName]; ok {
-				handleFunc(uuid, userInput, false)
+				handleFunc(uuid, userName, userInput, false)
 			} else {
-				this.userCmdProcHandles["directCmd"](uuid, userInput, false)
+				this.userCmdProcHandles["directCmd"](uuid, userName, userInput, false)
 			}
 		}
 
@@ -1785,14 +1822,18 @@ func getUserByOutput(key string, cmdBody string) (string, string, bool) {
 	return userName, uuid, true
 }
 
-func (this *Mindustry) banUser(adminName string, username string) {
-	uuid := this.getUserId(username)
-	this.currBanList.BanList = append(this.currBanList.BanList, Ban{username, uuid, "", adminName, ""})
-	log.Printf("BanUser:%s->%s\n", adminName, username)
+var banUpMutex sync.RWMutex
 
+func (this *Mindustry) banUser(adminName string, username string) {
+	banUpMutex.Lock()
+	uuid := this.getUserId(username)
+	this.currBanList.BanList = append(this.currBanList.BanList, Ban{username, uuid, "", adminName, getNowTime()})
+	banUpMutex.Unlock()
+	log.Printf("BanUser:%s->%s\n", adminName, username)
 }
 
 func (this *Mindustry) unbanUser(target string) {
+	banUpMutex.Lock()
 	j := 0
 	for _, user := range this.currBanList.BanList {
 		if user.Id != target && user.Name != target && user.Ip != target {
@@ -1803,42 +1844,59 @@ func (this *Mindustry) unbanUser(target string) {
 		}
 	}
 	this.currBanList.BanList = this.currBanList.BanList[:j]
-
+	banUpMutex.Unlock()
 }
 
-const MAX_MESSAGE_CACHE int = 100
-
-var messageListMutex sync.RWMutex
-var messageId int
-
-func (this *Mindustry) appendChartMesaage(line string) {
-	messageListMutex.Lock()
-	if this.chartMessages.Len() > MAX_MESSAGE_CACHE {
-		this.chartMessages.Remove(this.chartMessages.Front())
-	}
-	newLine := strings.TrimSpace(line)
-	this.chartMessages.PushBack(Message{messageId, newLine})
-	messageId += 1
-	messageListMutex.Unlock()
-}
-func (this *Mindustry) getChartMesaage(begin int) (ret []Message) {
-	ret = make([]Message, 0)
-	messageListMutex.RLock()
-	if begin >= messageId {
-		messageListMutex.RUnlock()
-		return ret
-	}
-	for p := this.chartMessages.Front(); p != nil; p = p.Next() {
-		v := p.Value.(Message)
-		if v.Id >= begin {
-			ret = append(ret, v)
+func (this *Mindustry) updateBans() {
+	banUpMutex.Lock()
+	isChg := false
+	j := 0
+	for _, user := range this.currBanList.BanList {
+		if !findInBan(this.tmpBanList.BanList, &user) {
+			this.currBanList.BanList[j] = user
+			j++
+		} else {
+			isChg = true
+			log.Printf("rmv banUser:%s,%s,%s\n", user.Id, user.Name, user.Ip)
 		}
 	}
-	messageListMutex.RUnlock()
+	this.currBanList.BanList = this.currBanList.BanList[:j]
+	for _, user := range this.tmpBanList.BanList {
+		if !findInBan(this.currBanList.BanList, &user) {
+			this.currBanList.BanList = append(this.currBanList.BanList, user)
+			isChg = true
+			log.Printf("add banUser:%s,%s,%s\n", user.Id, user.Name, user.Ip)
+		}
+	}
+	banUpMutex.Unlock()
+	if isChg {
+		data, err := json.MarshalIndent(this.currBanList, "", "    ")
+		if err != nil {
+			log.Println("[ERR]writeAdminCfg fail:", err)
+			return
+		}
+		WriteConfig("bans.json", data)
+	}
+}
+
+func (this *Mindustry) getBans() (ret []Ban) {
+	banUpMutex.RLock()
+	ret = make([]Ban, len(this.currBanList.BanList))
+	copy(ret, this.currBanList.BanList)
+	banUpMutex.RUnlock()
 	return ret
 }
 
+func (this *Mindustry) webMessageProc(userName string, message string) {
+	this.say("(" + userName + ") " + message)
+	if !strings.HasPrefix(message, "\\") && !strings.HasPrefix(message, "/") && !strings.HasPrefix(message, "!") {
+		return
+	}
+	this.procUsrCmd("", userName, message[1:])
+}
+
 var MAP_WAVE_REG = regexp.MustCompile("Playing\\son\\smap\\s(.+)/\\sWave\\s(\\d+)")
+var MESSAGE_REG = regexp.MustCompile("<(.+)\\:\\s/message\\s(.+)>")
 
 func (this *Mindustry) output(line string) {
 	index := strings.Index(line, SERVER_ERR_LOG)
@@ -1861,13 +1919,18 @@ func (this *Mindustry) output(line string) {
 	if index > -1 {
 		userName := strings.TrimSpace(cmdBody[:index])
 		if userName == "Server" || this.getUserId(userName) != "" {
-			this.appendChartMesaage(line)
+			this.chartMessages.appendMessage(line)
 		}
 	}
-	mapWave := MAP_WAVE_REG.FindStringSubmatch(cmdBody)
-	if mapWave != nil {
-		this.gameStatus.Map = strings.TrimSpace(mapWave[1])
-		this.gameStatus.Wave = mapWave[2]
+	messageBoard := MESSAGE_REG.FindStringSubmatch(cmdBody)
+	if messageBoard != nil {
+		userName := messageBoard[1]
+		log.Printf("[%s]message:%s\n", userName, messageBoard[2])
+		if this.getUserId(userName) != "" {
+
+			fmt.Printf("%s : %s\n", userName, messageBoard[2])
+			this.messageBoard.appendMessage(messageBoard[2])
+		}
 		return
 	}
 
@@ -1880,28 +1943,33 @@ func (this *Mindustry) output(line string) {
 	}
 
 	if cmdBody == "Banned players [ID]:" {
-		if len(this.currBanList.BanList) > 0 {
-			this.currBanList.BanList = this.currBanList.BanList[0:0]
+		if len(this.tmpBanList.BanList) > 0 {
+			this.tmpBanList.BanList = this.tmpBanList.BanList[0:0]
 			log.Printf("BanList init\n")
 		}
+		go func() {
+			timer := time.NewTimer(time.Duration(60) * time.Second)
+			<-timer.C
+			this.updateBans()
+		}()
 		return
 	}
 	banIpId := BAN_REG_IP_ID.FindStringSubmatch(cmdBody)
 	if banIpId != nil {
-		this.currBanList.BanList = append(this.currBanList.BanList, Ban{banIpId[2], banIpId[3], banIpId[1], "", ""})
+		this.tmpBanList.BanList = append(this.tmpBanList.BanList, Ban{banIpId[2], banIpId[3], banIpId[1], "", getNowTime()})
 		log.Printf("BanIpId:%s,%s,%s\n", banIpId[2], banIpId[3], banIpId[1])
 		return
 	}
 	banId := BAN_REG_ID.FindStringSubmatch(cmdBody)
 	if banId != nil {
-		this.currBanList.BanList = append(this.currBanList.BanList, Ban{banId[2], banId[1], "", "", ""})
+		this.tmpBanList.BanList = append(this.tmpBanList.BanList, Ban{banId[2], banId[1], "", "", ""})
 		log.Printf("BanId:%s,%s\n", banId[1], banId[2])
 		return
 	}
 
 	banIp := BAN_REG_IP.FindStringSubmatch(cmdBody)
 	if banIp != nil {
-		this.currBanList.BanList = append(this.currBanList.BanList, Ban{"", "", banIp[1], "", ""})
+		this.tmpBanList.BanList = append(this.tmpBanList.BanList, Ban{"", "", banIp[1], "", ""})
 		log.Printf("BanIp:%s\n", banIp[1])
 		return
 	}
@@ -1929,7 +1997,7 @@ func (this *Mindustry) output(line string) {
 			}
 			sayBody := strings.TrimSpace(cmdBody[index+1:])
 			if strings.HasPrefix(sayBody, "\\") || strings.HasPrefix(sayBody, "/") || strings.HasPrefix(sayBody, "!") {
-				this.procUsrCmd(uuid, sayBody[1:])
+				this.procUsrCmd(uuid, "", sayBody[1:])
 			} else if len(this.votetickUsers) > 0 {
 				if sayBody == "1" {
 					log.Printf("%s votetick agree\n", userName)
@@ -1987,7 +2055,6 @@ func (this *Mindustry) output(line string) {
 	} else if strings.Index(cmdBody, SERVER_READY_KEY) > -1 {
 		this.playCnt = 0
 		this.serverIsRun = true
-		this.netBan()
 
 		this.execCmd("config name " + this.name)
 		this.execCmd("config port " + strconv.Itoa(this.port))
