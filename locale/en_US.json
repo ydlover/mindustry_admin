@@ -62,7 +62,8 @@
 	"mode_show":"Server mode is [%s],If mode is not set, you can specify a mode when executing host or hostx commands",
 	"cmd_mapManage_start": "Map manage has started(600 seconds limit),Maps can now be uploaded and deleted.",
 	"cmd_mapManage_end": "Map manage has ended,maps can no longer be uploaded and deleted.",
-	"status_show": "status:%s"
+	"status_show": "status:%s",
+	"message_board": "Receive message from %s"
 },
   "error" : {
 	"admin_unremoved" : "[%s] not found!",

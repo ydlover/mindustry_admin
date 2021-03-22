@@ -62,7 +62,8 @@
 	"mode_show":"当前服务器设置的固定模式是[%s],如果未设置模式则执行host或hostx时可以指定模式，否则不能",
 	"cmd_mapManage_start": "地图管理开始(600秒),地图将可以上传和删除",
 	"cmd_mapManage_end": "地图管理结束，地图将不能被上传和删除",
-	"status_show": "服务器状态:%s"
+	"status_show": "服务器状态:%s",
+	"message_board": "已经收到%s的留言"
 },
   "error" : {
 	"admin_unremoved" : " [%s]没找到,移除管理员权限",

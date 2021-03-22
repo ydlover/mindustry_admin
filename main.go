@@ -137,6 +137,15 @@ func (this *MessageManager) getMessage(begin int) (ret []Message) {
 	return ret
 }
 
+func (this *Mindustry) chartMessageProc(gameName string, message string) {
+	this.chartMessages.appendMessage(message)
+}
+
+func (this *Mindustry) messageBoardProc(gameName string, message string) {
+	this.messageBoard.appendMessage(message)
+	this.say("info.message_board", gameName)
+}
+
 type Admin struct {
 	// web app username
 	UserName string `json:"userName"`
@@ -1940,7 +1949,7 @@ func (this *Mindustry) output(line string) {
 	if index > -1 {
 		userName := strings.TrimSpace(cmdBody[:index])
 		if userName == "Server" || this.getUserId(userName) != "" {
-			this.chartMessages.appendMessage(line)
+			this.chartMessageProc(userName, line)
 		}
 	}
 	messageBoard := MESSAGE_REG.FindStringSubmatch(cmdBody)
@@ -1950,7 +1959,7 @@ func (this *Mindustry) output(line string) {
 		if this.getUserId(userName) != "" {
 
 			fmt.Printf("%s : %s\n", userName, messageBoard[2])
-			this.messageBoard.appendMessage(messageBoard[2])
+			this.messageBoardProc(userName, messageBoard[2])
 		}
 		return
 	}
