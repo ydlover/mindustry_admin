@@ -275,6 +275,7 @@ type Mindustry struct {
 	startTime              int64
 	chartMessages          *MessageManager
 	messageBoard           *MessageManager
+	aim                    *AimManager
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -700,6 +701,7 @@ func (this *Mindustry) init() {
 	this.jarPath = "server-release.jar"
 	this.currMindustryVer = ""
 	this.mindustryVersionInfo = new(MindustryVersionInfo)
+	this.aim = new(AimManager)
 	this.missionMap = "nuclearProductionComplex"
 	this.firstIsStart = true
 	this.serverIsStart = false
@@ -735,6 +737,7 @@ func (this *Mindustry) init() {
 	this.userCmdProcHandles["vote"] = this.proc_votetick
 	this.userCmdProcHandles["mode"] = this.proc_mode
 	this.userCmdProcHandles["mapManage"] = this.proc_mapManage
+	this.userCmdProcHandles["aim"] = this.proc_aim
 	this.initStatus()
 	spec := "0 0 * * * ?"
 	this.c.AddFunc(spec, func() {
