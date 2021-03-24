@@ -142,7 +142,7 @@ func (this *Mindustry) chartMessageProc(gameName string, message string) {
 }
 
 func (this *Mindustry) messageBoardProc(gameName string, message string) {
-	this.messageBoard.appendMessage(message)
+	this.messageBoard.appendMessage("[" + gameName + "] " + message)
 	this.say("info.message_board", gameName)
 }
 
