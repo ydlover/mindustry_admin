@@ -147,6 +147,10 @@ func (this *Mindustry) messageBoardProc(gameName string, message string) {
 	this.say("info.message_board", gameName)
 }
 
+const LEVEL_NORM = 0
+const LEVEL_ADMIN = 1
+const LEVEL_SUOP = 9
+
 type Admin struct {
 	// web app username
 	UserName string `json:"userName"`
@@ -480,11 +484,11 @@ func (this *Mindustry) loadAdminConfig() {
 	}
 	for _, admin := range this.adminCfg.SuperAdminList {
 		log.Printf("SuperAdmin:%s(%s)\n", admin.Name, admin.Id)
-		admin.level = 9
+		admin.level = LEVEL_SUOP
 	}
 	for _, admin := range this.adminCfg.AdminList {
 		log.Printf("Admin:%s(%s)\n", admin.Name, admin.Id)
-		admin.level = 1
+		admin.level = LEVEL_ADMIN
 	}
 }
 func WriteConfig(cfg string, jsonByte []byte) {
@@ -702,6 +706,7 @@ func (this *Mindustry) init() {
 	this.currMindustryVer = ""
 	this.mindustryVersionInfo = new(MindustryVersionInfo)
 	this.aim = new(AimManager)
+	this.aim.init(this)
 	this.missionMap = "nuclearProductionComplex"
 	this.firstIsStart = true
 	this.serverIsStart = false
@@ -949,8 +954,8 @@ func (this *Mindustry) onlineAdmin(uuid string) {
 	}
 	tempUser := this.users[uuid]
 	tempUser.IsAdmin = true
-	if tempUser.level < 1 {
-		tempUser.level = 1
+	if tempUser.level < LEVEL_ADMIN {
+		tempUser.level = LEVEL_ADMIN
 	}
 	this.users[uuid] = tempUser
 	log.Printf("online admin :%s\n", this.users[uuid].Name)
@@ -964,8 +969,8 @@ func (this *Mindustry) onlineSuperAdmin(uuid string) {
 	tempUser := this.users[uuid]
 	tempUser.IsAdmin = true
 	tempUser.IsSuperAdmin = true
-	if tempUser.level < 9 {
-		tempUser.level = 9
+	if tempUser.level < LEVEL_SUOP {
+		tempUser.level = LEVEL_SUOP
 	}
 	this.users[uuid] = tempUser
 	log.Printf("online superAdmin :%s\n", this.users[uuid].Name)
@@ -1685,7 +1690,7 @@ func (this *Mindustry) getUserLevel(uuid string, userName string) int {
 			return admin.level
 		} else {
 			log.Printf("admin not found [%s]\n", userName)
-			return 0
+			return LEVEL_NORM
 		}
 	}
 	return this.users[uuid].level
@@ -1706,7 +1711,7 @@ func (this *Mindustry) isSuop(uuid string, userName string) bool {
 	if userName != "" {
 		admin := this.getAdmin(userName)
 		if admin != nil {
-			return admin.level == 9
+			return admin.level == LEVEL_SUOP
 		} else {
 			log.Printf("admin not found [%s]\n", userName)
 			return false
@@ -1975,6 +1980,9 @@ func (this *Mindustry) output(line string) {
 		return
 	}
 
+	if strings.HasPrefix(cmdBody, "[jsdata]") {
+		this.aim.jsdataProc(cmdBody[len("[jsdata]"):])
+	}
 	if this.currProcCmd == "maps" || this.currProcCmd == "status" {
 		//this.say( line)
 		if this.multiLineRsltCmdComplete(cmdBody) {
