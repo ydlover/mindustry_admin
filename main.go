@@ -804,6 +804,7 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 				this.serverIsStart = false
 				this.serverIsRun = false
 				this.writeAdminConfig()
+				this.aim.saveAimInfo()
 			}
 			if inputCmd == "host" || inputCmd == "load" {
 				this.serverIsStart = true
@@ -873,6 +874,7 @@ func (this *Mindustry) tenMinTask() {
 	if !this.serverIsStart {
 		return
 	}
+	this.aim.tenMinProc()
 	if this.timeoutCnt >= 3 {
 		log.Printf("game is not response,exit.\n")
 		this.killCh <- os.Kill

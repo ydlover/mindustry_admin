@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -57,14 +60,49 @@ type AimInfo struct {
 	AimUserInfo map[string][]Aim `json:"aim_lst"`
 }
 type AimManager struct {
-	mdt     *Mindustry
-	aimInfo *AimInfo
+	mdt        *Mindustry
+	aimInfo    *AimInfo
+	isNeedSave bool
+}
+
+var AIM_FILE_NAME string = "aim.json"
+
+func (this *AimManager) loadAimInfo() {
+	if !this.isNeedSave {
+		return
+	}
+	data, err := ioutil.ReadFile(AIM_FILE_NAME)
+	if err != nil {
+		log.Printf("[ERR]Not found aim.json!\n")
+		return
+	}
+	err = json.Unmarshal(data, this.aimInfo)
+	if err != nil {
+		log.Printf("[ERR]Load history fail:%s,err:%v!\n", AIM_FILE_NAME, err)
+		return
+	}
+	this.isNeedSave = false
+}
+
+func (this *AimManager) saveAimInfo() {
+	data, err := json.MarshalIndent(this.aimInfo, "", "    ")
+	if err != nil {
+		log.Println("[ERR]writeAdminCfg fail:", err)
+		return
+	}
+	WriteConfig(AIM_FILE_NAME, data)
+	log.Println("[INFO]aim is saved")
+	this.isNeedSave = true
+}
+func (this *AimManager) tenMinProc() {
+	this.saveAimInfo()
 }
 
 func (this *AimManager) init(mdt *Mindustry) {
 	this.mdt = mdt
 	this.aimInfo = new(AimInfo)
 	this.aimInfo.AimUserInfo = make(map[string][]Aim, 0)
+	this.loadAimInfo()
 	over = true
 }
 
@@ -91,6 +129,7 @@ func (this *AimManager) appendAimInfo(uuid string, data *Aim) bool {
 		this.aimInfo.AimUserInfo[uuid] = make([]Aim, 0)
 	}
 	this.aimInfo.AimUserInfo[uuid] = append(this.aimInfo.AimUserInfo[uuid], *data)
+	this.isNeedSave = true
 
 	return true
 }
@@ -122,77 +161,79 @@ func (this *AimManager) min(data1 float64, data2 float64) float64 {
 }
 
 func (this *AimManager) aimInfoTick(uuid string) bool {
-	this.jsSay("tick1")
+	//this.jsSay("tick1")
 	_, has := this.aimInfo.AimUserInfo[uuid]
 	has = has
-	if true {
-		this.jsSay("tick2")
-		this.aimInfo.AimUserInfo[uuid] = make([]Aim, 0)
-		for index, _ := range this.aimInfo.AimUserInfo[uuid] {
-			aimm := &(this.aimInfo.AimUserInfo[uuid][index])
-			aimm.MaxPoint = 35.0
-			aimm.MaxPower = 35.0
-			aimm.P_tTime = 120000
-			aimm.Pw_tTime = 60000
-			aimm.CanUseAim = true
-		}
+	if !has {
+		//this.jsSay("tick2")
+		aim := new(Aim)
+		aim.MaxPoint = 35.0
+		aim.MaxPower = 35.0
+		aim.P_tTime = 120
+		aim.Pw_tTime = 60
+		aim.CanUseAim = true
+		this.appendAimInfo(uuid, aim)
 	}
 	for index, _ := range this.aimInfo.AimUserInfo[uuid] {
-		aimi := &(this.aimInfo.AimUserInfo[uuid][index])
-		this.jsSay("tick3")
-		point := aimi.Point
-		maxPoint := aimi.MaxPoint
-		power := aimi.Power
-		maxPower := aimi.MaxPower
-		lastTime := aimi.LastUpdateTime
-		p_tTime := aimi.P_tTime
-		pw_tTime := aimi.Pw_tTime
+		aim := &(this.aimInfo.AimUserInfo[uuid][index])
+		//this.jsSay("tick3")
+		point := aim.Point
+		maxPoint := aim.MaxPoint
+		power := aim.Power
+		maxPower := aim.MaxPower
+		lastTime := aim.LastUpdateTime
+		p_tTime := aim.P_tTime
+		pw_tTime := aim.Pw_tTime
 		nowTime := time.Now().UTC().Unix()
 		a := nowTime - lastTime
 		bp := float64(a / p_tTime)
 		bpw := float64(a / pw_tTime)
 		point = point + bp
 		power = power + bpw
+		this.jsSay(strconv.FormatFloat(point, 'f', -1, 64))
+		this.jsSay(strconv.FormatFloat(power, 'f', -1, 64))
+		this.jsSay(strconv.FormatInt(nowTime, 10))
 		if power >= maxPower {
 			power = maxPower
 		}
 		if point >= maxPoint {
 			point = maxPoint
 		}
-		aimi.Point = point
-		aimi.Power = power
-		aimi.LastUpdateTime = nowTime
+		aim.Point = point
+		aim.Power = power
+		aim.LastUpdateTime = nowTime
 		if power == maxPower {
-			aimi.CanUseAim = true
+			aim.CanUseAim = true
 		}
 	}
 	return true
 }
 func (this *AimManager) randData(usePoint string, config RandData) (string, string, string, float64, float64) {
-	c, err := strconv.ParseFloat(usePoint, 64)
-	if err != nil {
-		over = true
-		return "", "", "", 0.0, 0.0
-	}
+	c, _ := strconv.ParseFloat(usePoint, 64)
+	//if err != nil {
+	//	over = true
+	//	return "", "", "", 0.0, 0.0
+	//}
 	up := this.min(c, config.MaxPoint)
 	up1 := this.max(up, config.MinPoint)
 	up = up1 - config.MinPoint
 	usePower := config.AddUsePower*up + config.MinUsePower
 	rand.Seed(time.Now().UnixNano())
 	e := strconv.FormatInt(config.AddSucc, 10)
-	d, err := strconv.ParseFloat(e, 64)
-	if err != nil {
-		over = true
-		return "", "", "", 0.0, 0.0
-	}
-	succ1 := up*d + 100.0
+	d, _ := strconv.ParseFloat(e, 64)
+	//if err != nil {
+	//	over = true
+	//	return "", "", "", 0.0, 0.0
+	//}
+	succ1 := up * d
+	succ1 = succ1 + 100.0
 	b := strconv.FormatFloat(succ1, 'f', -1, 64)
 	//succ2, _ := strconv.ParseInt(b, 10, 64)
-	succ8, err := strconv.Atoi(b)
-	if err != nil {
-		over = true
-		return "", "", "", 0.0, 0.0
-	}
+	succ8, _ := strconv.Atoi(b)
+	//if err != nil {
+	//	over = true
+	//	return "", "", "", 0.0, 0.0
+	//}
 	succ5 := int64(rand.Intn(succ8-0+1) + 0)
 	if succ5 < config.Succ {
 		a := "[aim]失败," + strconv.FormatInt(succ5, 10) + "%<" + strconv.FormatInt(config.Succ, 10) + "%\\n使用" + strconv.FormatFloat(up1, 'f', -1, 64) + "," + strconv.FormatFloat(usePower, 'f', -1, 64) + ""
@@ -200,11 +241,11 @@ func (this *AimManager) randData(usePoint string, config RandData) (string, stri
 	} else {
 		succ3 := succ5 - config.Succ
 		succ4 := strconv.FormatInt(succ3, 10)
-		succ6, err := strconv.ParseFloat(succ4, 64)
-		if err != nil {
-			over = true
-			return "", "", "", 0.0, 0.0
-		}
+		succ6, _ := strconv.ParseFloat(succ4, 64)
+		//if err != nil {
+		//	over = true
+		//	return "", "", "", 0.0, 0.0
+		//}
 		//succ1 = succ2 - config.Succ
 		succ := succ6 / succ1
 		maxbs := up*config.AddBuildSpeed + config.MaxBuildSpeed - config.MinBuildSpeed*succ
@@ -227,8 +268,8 @@ func (this *AimManager) randData(usePoint string, config RandData) (string, stri
 		aa := strconv.FormatInt(config.Succ, 10)
 		ab := strconv.FormatFloat(up1, 'f', -1, 64)
 		ac := strconv.FormatFloat(usePower, 'f', -1, 64)
-		a := "[aim]成功," + strconv.FormatFloat(succ, 'f', -1, 64) + "%<" + aa + "%\\n使用" + ab + "," + ac + ""
-		return out, amo1, a, up1, usePower
+		a := "[aim]成功," + strconv.FormatInt(succ5, 10) + "%>" + aa + "%\\n使用" + ab + "," + ac + ""
+		return amo1, out, a, up1, usePower
 	}
 }
 func (this *AimManager) admin(command []string, uuid string, userName string) bool {
@@ -474,6 +515,9 @@ func (this *AimManager) mono(command []string, uuid string) bool {
 		dat.MaxAmount = 3.0
 		dat.AddAmount = 0.5
 	}
+
+	timer := time.NewTimer(time.Duration(2) * time.Second)
+	<-timer.C
 	da, has := this.aimInfo.AimUserInfo[uuid]
 	da = da
 	if !has {
@@ -510,7 +554,7 @@ func (this *AimManager) mono(command []string, uuid string) bool {
 			info.Point = info.Point - up
 			info.Power = info.Power - upw
 			x, y := this.getPlayerXY(this.mdt.users[uuid].Name)
-			this.runjs("for(i<1;i=" + amo + ";i=i+1){UnitTypes.mono.spawn(Team.sharded," + x + "," + y + ")" + data + "}")
+			this.runjs("for(i=" + amo + ";i>=1;i--){UnitTypes.mono.spawn(Team.sharded," + x + "," + y + ")" + data + "}")
 			this.jsSay(uuid)
 			over = true
 		}
@@ -549,6 +593,9 @@ func (this *AimManager) mega(command []string, uuid string) bool {
 		dat.MaxAmount = 2.0
 		dat.AddAmount = 0.25
 	}
+
+	timer := time.NewTimer(time.Duration(2) * time.Second)
+	<-timer.C
 	da, has := this.aimInfo.AimUserInfo[uuid]
 	da = da
 	if !has {
@@ -586,7 +633,7 @@ func (this *AimManager) mega(command []string, uuid string) bool {
 			info.Point = info.Point - up
 			info.Power = info.Power - upw
 			x, y := this.getPlayerXY(this.mdt.users[uuid].Name)
-			this.runjs("for(i<1;i=" + amo + ";i=i+1){UnitTypes.mega.spawn(Team.sharded," + x + "," + y + ")" + data + "}")
+			this.runjs("for(i=" + amo + ";i>=1;i--){UnitTypes.mega.spawn(Team.sharded," + x + "," + y + ")" + data + "}")
 			this.jsSay(uuid)
 			over = true
 		}
@@ -626,8 +673,8 @@ func (this *AimManager) killallunit(command []string, uuid string) bool {
 }
 
 func (this *AimManager) getXY(name string) (string, string) {
-	timer := time.NewTimer(time.Duration(2) * time.Second)
-	<-timer.C
+	//timer := time.NewTimer(time.Duration(2) * time.Second)
+	//<-timer.C
 	x := "0"
 	y := "0"
 	xy := strings.Split(jsdata, ";")
@@ -675,19 +722,6 @@ func (this *Mindustry) proc_aim(uuid string, userName string, userInput string, 
 	}
 	cmdName := command[1]
 	fmt.Printf(cmdName)
-	data, has := this.aim.aimInfo.AimUserInfo[uuid]
-	data = data
-	if !has {
-		this.aim.aimInfo.AimUserInfo[uuid] = make([]Aim, 0)
-		for index, _ := range this.aim.aimInfo.AimUserInfo[uuid] {
-			aimm := &(this.aim.aimInfo.AimUserInfo[uuid][index])
-			aimm.MaxPoint = 35.0
-			aimm.MaxPower = 35.0
-			aimm.P_tTime = 120000
-			aimm.Pw_tTime = 60000
-			aimm.CanUseAim = true
-		}
-	}
 	this.aim.aimInfoTick(uuid)
 	if strings.HasPrefix(cmdName, "a") {
 		this.aim.admin(command, uuid, userName)
