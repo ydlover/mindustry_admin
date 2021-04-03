@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -21,6 +22,7 @@ type Aim struct {
 	P_tTime        int64   `json:"p_tTime"`
 	Pw_tTime       int64   `json:"pw_tTime"`
 	CanUseAim      bool    `json:"canUseAim"`
+	LastDate       string  `json:"lastDate"`
 }
 
 type RandData struct {
@@ -160,6 +162,12 @@ func (this *AimManager) min(data1 float64, data2 float64) float64 {
 	}
 }
 
+func itf(data int64) float64 {
+	e := strconv.FormatInt(data, 10)
+	d, _ := strconv.ParseFloat(e, 64)
+	return d
+}
+
 func (this *AimManager) aimInfoTick(uuid string) bool {
 	//this.jsSay("tick1")
 	_, has := this.aimInfo.AimUserInfo[uuid]
@@ -176,6 +184,15 @@ func (this *AimManager) aimInfoTick(uuid string) bool {
 	}
 	for index, _ := range this.aimInfo.AimUserInfo[uuid] {
 		aim := &(this.aimInfo.AimUserInfo[uuid][index])
+		aa := getNowDate()
+		if aim.LastDate != aa {
+			aim.LastDate = aa
+			rand.Seed(time.Now().UnixNano())
+			aaa := itf(int64(rand.Intn(20-0+1)+0)) / 10
+			aab := itf(int64(rand.Intn(40-0+1)+0)) / 10
+			aim.MaxPoint = aim.MaxPoint + aaa
+			aim.MaxPower = aim.MaxPower + aab
+		}
 		//this.jsSay("tick3")
 		point := aim.Point
 		maxPoint := aim.MaxPoint
@@ -185,14 +202,17 @@ func (this *AimManager) aimInfoTick(uuid string) bool {
 		p_tTime := aim.P_tTime
 		pw_tTime := aim.Pw_tTime
 		nowTime := time.Now().UTC().Unix()
-		a := nowTime - lastTime
-		bp := float64(a / p_tTime)
-		bpw := float64(a / pw_tTime)
+		a := itf(nowTime - lastTime)
+		bp := float64(a / itf(p_tTime))
+		bpw := float64(a / itf(pw_tTime))
 		point = point + bp
 		power = power + bpw
-		this.jsSay(strconv.FormatFloat(point, 'f', -1, 64))
-		this.jsSay(strconv.FormatFloat(power, 'f', -1, 64))
-		this.jsSay(strconv.FormatInt(nowTime, 10))
+		point = point * 100
+		point = math.Trunc(point)
+		point = point / 100
+		power = power * 100
+		power = math.Trunc(power)
+		power = power / 100
 		if power >= maxPower {
 			power = maxPower
 		}
@@ -208,7 +228,7 @@ func (this *AimManager) aimInfoTick(uuid string) bool {
 	}
 	return true
 }
-func (this *AimManager) randData(usePoint string, config RandData) (string, string, string, float64, float64) {
+func (this *AimManager) randData(usePoint string, config RandData) (string, string, string, string, float64, float64) {
 	c, _ := strconv.ParseFloat(usePoint, 64)
 	//if err != nil {
 	//	over = true
@@ -237,7 +257,7 @@ func (this *AimManager) randData(usePoint string, config RandData) (string, stri
 	succ5 := int64(rand.Intn(succ8-0+1) + 0)
 	if succ5 < config.Succ {
 		a := "[aim]失败," + strconv.FormatInt(succ5, 10) + "%<" + strconv.FormatInt(config.Succ, 10) + "%\\n使用" + strconv.FormatFloat(up1, 'f', -1, 64) + "," + strconv.FormatFloat(usePower, 'f', -1, 64) + ""
-		return "fail", "fail", a, up1, usePower
+		return "fail", "fail", a, "", up1, usePower
 	} else {
 		succ3 := succ5 - config.Succ
 		succ4 := strconv.FormatInt(succ3, 10)
@@ -263,13 +283,18 @@ func (this *AimManager) randData(usePoint string, config RandData) (string, stri
 		maxit := up*config.AddItemCaption + config.MaxItemCaption - config.MinItemCaption*succ
 		it := maxit + config.MinItemCaption
 		//e := 'f'
-		out := ";u.buildSpeed=" + strconv.FormatFloat(bs, 'f', -1, 64) + ";u.moveSpeed=" + strconv.FormatFloat(ms, 'f', -1, 64) + ";u.mineSpeed=" + strconv.FormatFloat(mis, 'f', -1, 64) + ";u.maxHealth=" + strconv.FormatFloat(hp, 'f', -1, 64) + ";u.maxAmmoCaption" + strconv.FormatFloat(am, 'f', -1, 64) + ";u.itemCaption=" + strconv.FormatFloat(it, 'f', -1, 64)
+		aaa := ""
+		if config.MaxBuildSpeed != 0 {
+			aaa = ";u.buildSpeed=" + strconv.FormatFloat(bs, 'f', -1, 64)
+		}
+		//
+		out := aaa + ";u.speed=" + strconv.FormatFloat(ms, 'f', -1, 64) + ";u.mineSpeed=" + strconv.FormatFloat(mis, 'f', -1, 64) + ";u.ammoCapacity=" + strconv.FormatFloat(am, 'f', -1, 64) + ";u.itemCapacity=" + strconv.FormatFloat(it, 'f', -1, 64)
 		amo1 := strconv.FormatFloat(amo, 'f', -1, 64)
 		aa := strconv.FormatInt(config.Succ, 10)
 		ab := strconv.FormatFloat(up1, 'f', -1, 64)
 		ac := strconv.FormatFloat(usePower, 'f', -1, 64)
 		a := "[aim]成功," + strconv.FormatInt(succ5, 10) + "%>" + aa + "%\\n使用" + ab + "," + ac + ""
-		return amo1, out, a, up1, usePower
+		return amo1, out, a, ";u.maxHealth=" + strconv.FormatFloat(hp, 'f', -1, 64), up1, usePower
 	}
 }
 func (this *AimManager) admin(command []string, uuid string, userName string) bool {
@@ -278,7 +303,7 @@ func (this *AimManager) admin(command []string, uuid string, userName string) bo
 		over = true
 		return false
 	}
-	this.jsSay(this.mdt.users[uuid].Name)
+	//this.jsSay(this.mdt.users[uuid].Name)
 	if len(command) < 3 {
 		this.jsSay("[aim][red]命令格式错误!输入!aim help查看帮助。")
 		over = true
@@ -286,7 +311,7 @@ func (this *AimManager) admin(command []string, uuid string, userName string) bo
 	}
 	cmdName := command[2]
 	if strings.HasPrefix(cmdName, "sp") {
-		this.spawn(command)
+		this.spawn(command, uuid)
 	} else if strings.HasPrefix(cmdName, "s") {
 		this.setblock(command)
 	} else if strings.HasPrefix(cmdName, "f") {
@@ -303,18 +328,65 @@ func (this *AimManager) admin(command []string, uuid string, userName string) bo
 	over = true
 	return true
 }
-func (this *AimManager) spawn(command []string) bool {
-	this.jsSay("[aim][red]指令未完成!")
-	over = true
+func (this *AimManager) spawn(command []string, uuid string) bool {
+	if len(command) < 5 {
+		this.jsSay("[aim][red]命令格式错误!输入!aim help查看帮助。")
+		over = true
+		return false
+	}
+	x, y := this.getPlayerXY(this.mdt.users[uuid].Name)
+	amount := "1"
+	if len(command) < 6 {
+		amount = "1"
+	} else {
+		amount = command[5]
+	}
+	config := ""
+	if len(command) < 7 {
+		config = ""
+	} else {
+		config = ";" + command[6]
+		config = strings.Replace(config, ";", ";u.", -1)
+	}
+	go func() {
+		timer := time.NewTimer(time.Duration(5) * time.Second)
+		<-timer.C
+		x, y = this.getPlayerXY(this.mdt.users[uuid].Name)
+		this.runjs("for(i=" + amount + ";i>0;i--){u=UnitTypes." + command[4] + ".spawn(Team." + command[3] + "," + x + "," + y + ")" + config + "}")
+		over = true
+		return
+	}()
 	return true
 }
 func (this *AimManager) setblock(command []string) bool {
-	this.jsSay("[aim][red]指令未完成!")
+	if len(command) < 7 {
+		this.jsSay("[aim][red]命令格式错误!输入!aim help查看帮助。")
+		over = true
+		return false
+	}
+	rotate := "0"
+	if len(command) < 8 {
+		rotate = "0"
+	} else {
+		rotate = command[7]
+	}
+	this.runjs("Vars.world.tile(" + command[3] + "," + command[4] + ").setNet(Blocks." + command[6] + ",Team." + command[5] + "," + rotate + ")")
 	over = true
 	return true
 }
 func (this *AimManager) fill(command []string) bool {
-	this.jsSay("[aim][red]指令未完成!")
+	if len(command) < 9 {
+		this.jsSay("[aim][red]命令格式错误!输入!aim help查看帮助。")
+		over = true
+		return false
+	}
+	rotate := "0"
+	if len(command) < 10 {
+		rotate = "0"
+	} else {
+		rotate = command[9]
+	}
+	this.runjs("for(x=" + command[3] + ";x<" + command[5] + ";x++{for(y=" + command[4] + ";y<" + command[6] + ";y++){Vars.world.time(x,y).setNet(Blocks." + command[8] + ",Team." + command[7] + "," + rotate + ")}};Call.sendMessage(\"over\")")
 	over = true
 	return true
 }
@@ -324,7 +396,12 @@ func (this *AimManager) kill(command []string) bool {
 	return true
 }
 func (this *AimManager) gamerule(command []string) bool {
-	this.jsSay("[aim][red]指令未完成!")
+	if len(command) < 6 {
+		this.jsSay("[aim][red]命令格式错误!输入!aim help查看帮助。")
+		over = true
+		return false
+	}
+	this.runjs("Vars.state.rules." + command[3] + "=" + command[4])
 	over = true
 	return true
 }
@@ -367,7 +444,7 @@ func (this *AimManager) help(command []string) bool {
 					return false
 				}
 				if page == 1 {
-					this.jsSay("[aim]--help1/2--\\nspawn <team> <type> [amount] 生成单位\\nsetblock <x> <y> <team> <type> [rotate]设置方块\\nfill <x1> <y1> <x2> <y2> <size> <team> <type> [rotate] 填充方块")
+					this.jsSay("[aim]--help1/2--\\nspawn <team> <type> [amount] [config] 生成单位\\nsetblock <x> <y> <team> <type> [rotate]设置方块\\nfill <x1> <y1> <x2> <y2> <size> <team> <type> [rotate] 填充方块")
 					over = true
 					return true
 				} else if page == 2 {
@@ -423,35 +500,24 @@ func (this *AimManager) help(command []string) bool {
 	return true
 }
 func (this *AimManager) info(uuid string) bool {
-	data, has := this.aimInfo.AimUserInfo[uuid]
-	data = data
-	if !has {
-		this.aimInfo.AimUserInfo[uuid] = make([]Aim, 0)
-		for index, _ := range this.aimInfo.AimUserInfo[uuid] {
-			aimm := &(this.aimInfo.AimUserInfo[uuid][index])
-			aimm.MaxPoint = 35.0
-			aimm.MaxPower = 35.0
-			aimm.P_tTime = 120000
-			aimm.Pw_tTime = 60000
-			aimm.CanUseAim = true
-		}
-	}
-	this.jsSay("1")
 	for index, _ := range this.aimInfo.AimUserInfo[uuid] {
 		info := &(this.aimInfo.AimUserInfo[uuid][index])
 		this.jsSay("[aim]-用户信息-")
 		//e := "f"
-		this.jsSay(":" + strconv.FormatFloat(info.Point, 'f', -1, 64) + "/" + strconv.FormatFloat(info.MaxPoint, 'f', -1, 64))
-		this.jsSay(":" + strconv.FormatFloat(info.Power, 'f', -1, 64) + "/" + strconv.FormatFloat(info.MaxPower, 'f', -1, 64))
-		this.jsSay("[aim]-用户信息-")
+		this.jsSay(":" + strconv.FormatFloat(info.Point, 'f', -1, 64) + "/" + strconv.FormatFloat(info.MaxPoint, 'f', -1, 64) + "   " + strconv.FormatInt(info.P_tTime, 10) + "秒/单位")
+		if info.CanUseAim == true {
+			this.jsSay(":[green]" + strconv.FormatFloat(info.Power, 'f', -1, 64) + "/" + strconv.FormatFloat(info.MaxPower, 'f', -1, 64) + "[]   " + strconv.FormatInt(info.Pw_tTime, 10) + "秒/单位")
+		} else {
+			this.jsSay(":[red]" + strconv.FormatFloat(info.Power, 'f', -1, 64) + "/" + strconv.FormatFloat(info.MaxPower, 'f', -1, 64) + "[]   " + strconv.FormatInt(info.Pw_tTime, 10) + "秒/单位")
+		}
 	}
 	over = true
 	return true
 }
 func (this *AimManager) run(command []string, uuid string) bool {
-	this.jsSay("run")
-	x, y := this.getPlayerXY(this.mdt.users[uuid].Name)
-	this.jsSay(x + "," + y)
+	//this.jsSay("run")
+	_, _ = this.getPlayerXY(this.mdt.users[uuid].Name)
+	//this.jsSay(x + "," + y)
 	if len(command) < 3 {
 		this.jsSay("[aim][red]命令格式错误!输入!aim help查看帮助。")
 		over = true
@@ -515,50 +581,53 @@ func (this *AimManager) mono(command []string, uuid string) bool {
 		dat.MaxAmount = 3.0
 		dat.AddAmount = 0.5
 	}
-
-	timer := time.NewTimer(time.Duration(2) * time.Second)
-	<-timer.C
-	da, has := this.aimInfo.AimUserInfo[uuid]
-	da = da
-	if !has {
-		over = true
-		return false
-	}
-	for index, _ := range this.aimInfo.AimUserInfo[uuid] {
-		info := &(this.aimInfo.AimUserInfo[uuid][index])
-		a := ""
-		if len(command) < 4 {
-			a = "10.0"
-		} else {
-			a = command[3]
-			a = a
+	go func() {
+		timer := time.NewTimer(time.Duration(5) * time.Second)
+		<-timer.C
+		da, has := this.aimInfo.AimUserInfo[uuid]
+		da = da
+		if !has {
+			over = true
+			return
 		}
-		amo, data, say, up, upw := this.randData(a, dat)
-		if amo == "fail" {
-			this.jsSay(say)
-			over = true
-			return false
-		} else if info.CanUseAim == false {
-			this.jsSay("[aim]power过载，请等待至恢复完成")
-			over = true
-			return false
-		} else if info.Point < up {
-			this.jsSay("[aim]point不足，需要" + strconv.FormatFloat(up, 'f', -1, 64))
-			over = true
-			return false
-		} else {
-			if info.Power < upw {
-				info.CanUseAim = false
+		for index, _ := range this.aimInfo.AimUserInfo[uuid] {
+			info := &(this.aimInfo.AimUserInfo[uuid][index])
+			a := ""
+			if len(command) < 4 {
+				a = "10.0"
+			} else {
+				a = command[3]
+				a = a
 			}
-			this.jsSay(say)
-			info.Point = info.Point - up
-			info.Power = info.Power - upw
-			x, y := this.getPlayerXY(this.mdt.users[uuid].Name)
-			this.runjs("for(i=" + amo + ";i>=1;i--){UnitTypes.mono.spawn(Team.sharded," + x + "," + y + ")" + data + "}")
-			this.jsSay(uuid)
-			over = true
+			amo, data, say, h, up, upw := this.randData(a, dat)
+			if amo == "fail" {
+				this.jsSay(say)
+				over = true
+				return
+			} else if info.CanUseAim == false {
+				this.jsSay("[aim]power过载，请等待至恢复完成")
+				over = true
+				return
+			} else if info.Point < up {
+				this.jsSay("[aim]point不足，需要" + strconv.FormatFloat(up, 'f', -1, 64))
+				over = true
+				return
+			} else {
+				if info.Power < upw {
+					info.CanUseAim = false
+				}
+				this.jsSay(say)
+				info.Point = info.Point - up
+				info.Power = info.Power - upw
+				x, y := this.getPlayerXY(this.mdt.users[uuid].Name)
+				this.runjs("u=UnitTypes.mono" + data)
+				this.runjs("for(i=" + amo + ";i>=1;i--){u=UnitTypes.mono.spawn(Team.sharded," + x + "," + y + ")" + h + "}")
+				//this.runjs("u.health=100;u.mineSpeed=2.5;u.moveSpeed=1.5;u.itemCaption=20")
+				this.jsSay(uuid)
+				over = true
+			}
 		}
-	}
+	}()
 	return true
 }
 
@@ -593,51 +662,53 @@ func (this *AimManager) mega(command []string, uuid string) bool {
 		dat.MaxAmount = 2.0
 		dat.AddAmount = 0.25
 	}
-
-	timer := time.NewTimer(time.Duration(2) * time.Second)
-	<-timer.C
-	da, has := this.aimInfo.AimUserInfo[uuid]
-	da = da
-	if !has {
-		over = true
-		return false
-	}
-	for index, _ := range this.aimInfo.AimUserInfo[uuid] {
-		info := &(this.aimInfo.AimUserInfo[uuid][index])
-		a := "0.0"
-		if len(command) < 4 {
-			a = "30.0"
-			a = a
-		} else {
-			a = command[3]
-			a = a
+	go func() {
+		timer := time.NewTimer(time.Duration(2) * time.Second)
+		<-timer.C
+		da, has := this.aimInfo.AimUserInfo[uuid]
+		da = da
+		if !has {
+			over = true
+			return
 		}
-		amo, data, say, up, upw := this.randData(a, dat)
-		if amo == "fail" {
-			this.jsSay(say)
-			over = true
-			return false
-		} else if info.CanUseAim == false {
-			this.jsSay("[aim]power过载，请等待至恢复完成")
-			over = true
-			return false
-		} else if info.Point < up {
-			this.jsSay("[aim]point不足，需要" + strconv.FormatFloat(up, 'f', -1, 64))
-			over = true
-			return false
-		} else {
-			if info.Power < upw {
-				info.CanUseAim = false
+		for index, _ := range this.aimInfo.AimUserInfo[uuid] {
+			info := &(this.aimInfo.AimUserInfo[uuid][index])
+			a := "0.0"
+			if len(command) < 4 {
+				a = "30.0"
+				a = a
+			} else {
+				a = command[3]
+				a = a
 			}
-			this.jsSay(say)
-			info.Point = info.Point - up
-			info.Power = info.Power - upw
-			x, y := this.getPlayerXY(this.mdt.users[uuid].Name)
-			this.runjs("for(i=" + amo + ";i>=1;i--){UnitTypes.mega.spawn(Team.sharded," + x + "," + y + ")" + data + "}")
-			this.jsSay(uuid)
-			over = true
+			amo, data, say, h, up, upw := this.randData(a, dat)
+			if amo == "fail" {
+				this.jsSay(say)
+				over = true
+				return
+			} else if info.CanUseAim == false {
+				this.jsSay("[aim]power过载，请等待至恢复完成")
+				over = true
+				return
+			} else if info.Point < up {
+				this.jsSay("[aim]point不足，需要" + strconv.FormatFloat(up, 'f', -1, 64))
+				over = true
+				return
+			} else {
+				if info.Power < upw {
+					info.CanUseAim = false
+				}
+				this.jsSay(say)
+				info.Point = info.Point - up
+				info.Power = info.Power - upw
+				x, y := this.getPlayerXY(this.mdt.users[uuid].Name)
+				this.runjs("u=UnitTypes.mega" + data)
+				this.runjs("for(i=" + amo + ";i>=1;i--){u=UnitTypes.mega.spawn(Team.sharded," + x + "," + y + ")" + h + "}")
+				this.jsSay(uuid)
+				over = true
+			}
 		}
-	}
+	}()
 	return true
 }
 func (this *AimManager) flyboat(command []string, uuid string) bool {
@@ -712,8 +783,6 @@ func (this *Mindustry) proc_aim(uuid string, userName string, userInput string, 
 	}
 	over = false
 	//aim不需要判断是否在投票
-	this.aim.jsSay(uuid)
-	this.aim.jsSay(userInput)
 	command := strings.Split(userInput, " ")
 	if len(command) < 2 {
 		this.aim.jsSay("[aim][red]命令格式错误!输入!aim help查看帮助。")
