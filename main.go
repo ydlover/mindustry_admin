@@ -9,10 +9,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/emirpasic/gods/maps/linkedhashmap"
-	"github.com/kortemy/lingo"
-	"github.com/larspensjo/config"
-	"github.com/robfig/cron"
 	"io"
 	"io/ioutil"
 	"log"
@@ -28,6 +24,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/emirpasic/gods/maps/linkedhashmap"
+	"github.com/kortemy/lingo"
+	"github.com/larspensjo/config"
+	"github.com/robfig/cron"
 )
 
 var _VERSION_ = "1.0"
@@ -779,6 +780,7 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 		if cmd.Process != nil {
 			log.Printf("sub process exit:%s", s)
 			cmd.Process.Kill()
+			os.Exit(1)
 		}
 	}(cmd)
 	this.c.Start()
