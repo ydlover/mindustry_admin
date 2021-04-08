@@ -445,15 +445,21 @@ func (this *Mindustry) autoUpdateMindustryVer() {
 			this.mindustryVersionInfo.VerList = append(this.mindustryVersionInfo.VerList, currRemoteReleasesLatest)
 		} else {
 			remoteLastestTime, _ := time.Parse(time.RFC3339, currRemoteReleasesLatest.PublishedAt)
+			minTime, _ := time.Parse(time.RFC3339, this.mindustryVersionInfo.VerList[0].PublishedAt)
+			minIndex := 0
 			for index, ver := range this.mindustryVersionInfo.VerList {
 				t, _ := time.Parse(time.RFC3339, ver.PublishedAt)
-				if remoteLastestTime.After(t) {
-					this.mindustryVersionInfo.VerList[index] = currRemoteReleasesLatest
+				if remoteLastestTime.After(minTime) {
+					minIndex = index
+					minTime = t
 				}
+			}
+			if remoteLastestTime.After(minTime) {
+				this.mindustryVersionInfo.VerList[minIndex] = currRemoteReleasesLatest
 			}
 		}
 		this.isNeedRestartForUpdate = true
-		log.Printf("[INFO]downloadMindustryJar succ,wait restart server!\n")
+		log.Printf("[INFO]downloadMindustryJar(%s) succ,wait restart server!\n", this.mindustryVersionInfo.CurrVer)
 		this.writeMindustryVersionInfoCfg()
 	} else {
 		log.Printf("[ERR]Get remote mindustry version info fail,remote response:%d!\n", response.StatusCode)
