@@ -53,7 +53,7 @@
 	"slots_list" : "Slots:%s",
 	"maps_list" : "Maps:%s",
 	"votetick_in_progress" : "Votetick is in progress, please wait!",
-	"votetick_begin_info" : "Votetick started (60 second), vote by sending 1 or 0 (Yes:1, No:0)",
+	"votetick_begin_info" : "Votetick(%s) started (60 second), vote by sending 1 or 0 (Yes:1, No:0)",
 	"welcom_super_admin" : "Welcome [red]Super admin [red]%s",
 	"welcom_admin" : "Welcome [cyan]Admin[]:%s",
 	"cpu_temperature":"CPU temperature: %.3f°C",
