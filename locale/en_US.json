@@ -58,7 +58,7 @@
 	"welcom_admin" : "Welcome [cyan]Admin[]:%s",
 	"cpu_temperature":"CPU temperature: %.3f°C",
 	"votetick_pass":"Votetick passed, all:%d, agree:%d",
-	"votetick_fail":"Votetick failed, all:%d, agree:%d, [cyan]Admin[] against:%d",
+	"votetick_fail":"Votetick failed, all:%d, agree:%d, [cyan]against:%d",
 	"mode_show":"Server mode is [%s],If mode is not set, you can specify a mode when executing host or hostx commands",
 	"cmd_mapManage_start": "Map manage has started(600 seconds limit),Maps can now be uploaded and deleted.",
 	"cmd_mapManage_end": "Map manage has ended,maps can no longer be uploaded and deleted.",

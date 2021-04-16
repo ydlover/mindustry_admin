@@ -1542,25 +1542,26 @@ func (this *Mindustry) checkVote() (bool, int, int) {
 		return false, 0, 0
 	}
 	agreeCnt := 0
-	adminAgainstCnt := 0
+	againstCnt := 0
 	for uuid, isAgree := range this.votetickUsers {
 		if _, ok := this.users[uuid]; !ok {
 			continue
 		}
 		if isAgree == 1 {
 			agreeCnt++
-		} else if _, ok := this.users[uuid]; ok {
-			if this.users[uuid].IsAdmin {
-				adminAgainstCnt++
-			}
+		} else {
+			againstCnt++
 		}
 	}
-	// 取消管理员的否决权
-	//if adminAgainstCnt > 0 {
-	//	return false, agreeCnt, adminAgainstCnt
-	//}
-
-	return float32(agreeCnt)/float32(this.playCnt) >= 0.5, agreeCnt, adminAgainstCnt
+	notVoteUserCnt := 0
+	for uuid, _ := range this.users {
+		if _, ok := this.votetickUsers[uuid]; !ok {
+			notVoteUserCnt++
+		}
+	}
+	againstPoint := float32(againstCnt)*1 + float32(notVoteUserCnt)*0.5
+	agreePoint := float32(agreeCnt) * 1
+	return agreePoint/(agreePoint+againstPoint) >= 0.5, agreeCnt, againstCnt
 }
 func (this *Mindustry) proc_votetick(uuid string, userName string, userInput string, isOnlyCheck bool) bool {
 	index := strings.Index(userInput, " ")
@@ -1608,12 +1609,12 @@ func (this *Mindustry) proc_votetick(uuid string, userName string, userInput str
 	go func() {
 		timer := time.NewTimer(time.Duration(60) * time.Second)
 		<-timer.C
-		isSucc, agreeCnt, adminAgainstCnt := this.checkVote()
+		isSucc, agreeCnt, againstCnt := this.checkVote()
 		if isSucc {
 			this.say("info.votetick_pass", this.playCnt, agreeCnt)
 			handleFunc(uuid, userName, votetickCmd, false)
 		} else {
-			this.say("info.votetick_fail", this.playCnt, agreeCnt, adminAgainstCnt)
+			this.say("info.votetick_fail", this.playCnt, agreeCnt, againstCnt)
 		}
 		this.votetickUsers = make(map[string]int)
 		this.currProcCmd = ""
