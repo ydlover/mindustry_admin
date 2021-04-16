@@ -1048,6 +1048,12 @@ func (this *Mindustry) onlineUser(name string, uuid string) {
 		this.onlineAdmin(uuid)
 	}
 }
+func (this *Mindustry) offlineAllUser() {
+	this.playCnt = 0
+	for uuid, user := range this.users {
+		this.offlineUser(user.Name, uuid)
+	}
+}
 func (this *Mindustry) offlineUser(name string, uuid string) {
 	if _, ok := this.users[uuid]; !ok {
 		return
@@ -1082,7 +1088,7 @@ func (this *Mindustry) delUser(name string, uuid string) {
 }
 func (this *Mindustry) execCmd(cmd string) {
 	if cmd == "stop" || cmd == "host" || cmd == "hostx" || cmd == "load" {
-		this.playCnt = 0
+		this.offlineAllUser()
 	}
 	log.Printf("execCmd :%s\n", cmd)
 	data := []byte(cmd + "\n")
@@ -1819,13 +1825,13 @@ func (this *Mindustry) multiLineRsltCmdComplete(line string) bool {
 			}
 			return true
 		} else if strings.Index(line, "No players connected.") >= 0 {
-			this.playCnt = 0
+			this.offlineAllUser()
 			this.showStatus()
 			this.timeoutCnt = 0
 			return true
 		} else if strings.Index(line, "Status: server closed") >= 0 {
 			this.serverIsRun = false
-			this.playCnt = 0
+			this.offlineAllUser()
 			this.timeoutCnt = 0
 			this.showStatus()
 			return true
@@ -2096,7 +2102,7 @@ func (this *Mindustry) output(line string) {
 		}
 		this.offlineUser(userName, uuid)
 	} else if strings.Index(cmdBody, SERVER_READY_KEY) > -1 {
-		this.playCnt = 0
+		this.offlineAllUser()
 		this.serverIsRun = true
 
 		this.execCmd("config name " + this.name)
@@ -2115,7 +2121,7 @@ func (this *Mindustry) output(line string) {
 			this.gameStatus.Running = "true"
 		}
 		this.serverIsRun = true
-		this.playCnt = 0
+		this.offlineAllUser()
 	}
 }
 func (this *Mindustry) run() {
