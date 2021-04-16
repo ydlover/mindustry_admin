@@ -1093,6 +1093,13 @@ func (this *Mindustry) say(strKey string, v ...interface{}) {
 	info := fmt.Sprintf(localeStr, v...)
 	this.cmdIn.Write([]byte(info))
 }
+func (this *Mindustry) jsToast(showTime int, strKey string, v ...interface{}) {
+	localeStr := this.i18n.Value(strKey)
+	info := fmt.Sprintf(localeStr, v...)
+	info = "js Call.infoToast(\"" + info + "\"," + strconv.Itoa(showTime) + ")\n"
+	fmt.Printf("jsToast:%s\n", info)
+	this.cmdIn.Write([]byte(info))
+}
 
 func checkSlotValid(slot string) bool {
 	files, _ := ioutil.ReadDir("./config/saves")
@@ -1620,7 +1627,7 @@ func (this *Mindustry) proc_votetick(uuid string, userName string, userInput str
 		this.currProcCmd = ""
 	}()
 
-	this.say("info.votetick_begin_info")
+	this.jsToast(58, "info.votetick_begin_info")
 	return true
 }
 func checkMode(inputMode string) bool {
