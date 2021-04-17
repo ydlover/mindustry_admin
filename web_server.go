@@ -22,10 +22,11 @@ var url2path = map[string]string{
 }
 
 type FileDesc struct {
-	Id   int    `json:"id"`
-	Size int64  `json:"size"`
-	Name string `json:"name"`
-	Path string `json:"path"`
+	Id         int    `json:"id"`
+	Size       int64  `json:"size"`
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	ModifyTime string `json:"time"`
 }
 
 type AdminsList struct {
@@ -496,6 +497,22 @@ func handleFilesRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
+func getFileModTime(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		log.Println("open file error:" + path)
+		return "UNKOWN FILE"
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		log.Println("stat fileinfo error:" + path)
+		return "OPEN FAIL"
+	}
+
+	return fi.ModTime().Format("2006-01-02 15:04:05")
+}
 
 func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (err error) {
 	//fmt.Println("GET: " + r.URL.Path)
@@ -542,6 +559,7 @@ func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (
 		files[i].Name = f.Name()
 		files[i].Path = ""
 		files[i].Size = f.Size()
+		files[i].ModifyTime = getFileModTime(url2path[requestUrl] + f.Name())
 
 	}
 	output, err1 := json.MarshalIndent(&files, "", "\t\t")
