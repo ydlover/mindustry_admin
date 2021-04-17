@@ -53,7 +53,7 @@
 	"slots_list" : "存档列表:%s",
 	"maps_list" : "地图列表:%s",
 	"votetick_in_progress" : "投票正在进行，请等待!",
-	"votetick_begin_info" : "        投票(%s)开始(60秒)\\n        请输入 0 or 1 进行投票，1表示赞成，0表示反对，可以弃权。",
+	"votetick_begin_info" : "        投票(%s)开始(60秒)\\n        请输入 0 or 1 进行投票，1表示赞成，0表示反对，弃权算0.5票赞成",
 	"welcom_super_admin" : "欢迎超级管理员 [red]%s",
 	"welcom_admin" : "欢迎管理员:%s",
 	"cpu_temperature":"CPU温度: %.3f°C",
