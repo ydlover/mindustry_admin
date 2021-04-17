@@ -131,8 +131,7 @@ func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		userName := r.Form.Get("username")
 		passwd := r.Form.Get("passwd")
-		fmt.Println("request name:" + userName)
-		fmt.Println("request pass:" + passwd)
+		fmt.Println("login name:" + userName)
 		var result LoginRslt
 		isSucc := m_mindustryServer.webLoginAdmin(userName, passwd)
 		if isSucc {
