@@ -873,7 +873,7 @@ func (this *Mindustry) tenMinTask() {
 		log.Printf("game is need update, exit.\n")
 		this.execCmd("exit")
 	} else {
-		this.say(this.notice)
+		this.jsToast(10, this.notice)
 		if this.currProcCmd != "" {
 			log.Printf("cmd(%s) is running.\n", this.currProcCmd)
 		} else {
@@ -2081,9 +2081,9 @@ func (this *Mindustry) output(line string) {
 		if this.users[uuid].IsAdmin {
 			time.Sleep(1 * time.Second)
 			if this.users[uuid].IsSuperAdmin {
-				this.say("info.welcom_super_admin", userName)
+				this.jsToast(20, "info.welcom_super_admin", userName)
 			} else {
-				this.say("info.welcom_admin", userName)
+				this.jsToast(10, "info.welcom_admin", userName)
 			}
 			this.execCmd("admin add " + userName)
 		}
