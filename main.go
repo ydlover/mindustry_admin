@@ -1982,7 +1982,11 @@ func (this *Mindustry) output(line string) {
 		}
 		return
 	}
-
+	waveInfo := MAP_WAVE_REG.FindStringSubmatch(cmdBody)
+	if waveInfo != nil {
+		this.gameStatus.Map = waveInfo[1]
+		this.gameStatus.Wave = waveInfo[2]
+	}
 	if this.currProcCmd == "maps" || this.currProcCmd == "status" {
 		//this.say( line)
 		if this.multiLineRsltCmdComplete(cmdBody) {
