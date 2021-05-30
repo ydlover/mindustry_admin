@@ -47,7 +47,7 @@ func DirsInit() {
 	for _, filePath := range url2path {
 		err := initFilePath(filePath)
 		if err != nil {
-			fmt.Println(err)
+			//fmt.Println(err)
 		}
 	}
 }
@@ -80,7 +80,7 @@ func StartFileUpServer(mindustryServer *Mindustry) {
 		Addr:    "0.0.0.0:" + strconv.Itoa(mindustryServer.mapMangePort),
 		Handler: mux,
 	}
-	fmt.Println("file up server listening on: http://0.0.0.0:" + strconv.Itoa(mindustryServer.mapMangePort))
+	//fmt.Println("file up server listening on: http://0.0.0.0:" + strconv.Itoa(mindustryServer.mapMangePort))
 	go func() {
 		c := make(chan os.Signal)
 		signal.Notify(c, os.Interrupt, os.Kill)
@@ -93,7 +93,7 @@ func StartFileUpServer(mindustryServer *Mindustry) {
 }
 
 func authRequest(w http.ResponseWriter, userName string, sessionId string) bool {
-	//fmt.Printf("auth:username=%s,sessionId=%s\n", userName, sessionId)
+	////fmt.Printf("auth:username=%s,sessionId=%s\n", userName, sessionId)
 	if m_mindustryServer.webLoginSessionChk(userName, sessionId) {
 		return true
 	}
@@ -101,7 +101,7 @@ func authRequest(w http.ResponseWriter, userName string, sessionId string) bool 
 	result.Result = "user not login!"
 	output, err1 := json.MarshalIndent(&result, "", "\t\t")
 	if err1 != nil {
-		fmt.Printf("json gen fail")
+		//fmt.Printf("json gen fail")
 		return false
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -114,7 +114,7 @@ func Response(w http.ResponseWriter, r string) {
 	result.Result = r
 	output, err1 := json.MarshalIndent(&result, "", "\t\t")
 	if err1 != nil {
-		fmt.Printf("json gen fail")
+		//fmt.Printf("json gen fail")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -123,7 +123,7 @@ func Response(w http.ResponseWriter, r string) {
 
 func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
-	fmt.Println("handleLoginRequest url:" + r.URL.Path + ", method:" + r.Method)
+	//fmt.Println("handleLoginRequest url:" + r.URL.Path + ", method:" + r.Method)
 
 	switch r.Method {
 	case "POST":
@@ -131,7 +131,7 @@ func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		userName := r.Form.Get("username")
 		passwd := r.Form.Get("passwd")
-		fmt.Println("login name:" + userName)
+		//fmt.Println("login name:" + userName)
 		var result LoginRslt
 		isSucc := m_mindustryServer.webLoginAdmin(userName, passwd)
 		if isSucc {
@@ -157,7 +157,7 @@ func handleLoginRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func handleSignRequest(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("handleSignRequest url:" + r.URL.Path + ", method:" + r.Method)
+	//fmt.Println("handleSignRequest url:" + r.URL.Path + ", method:" + r.Method)
 	switch r.Method {
 	case "POST":
 		r.ParseForm()
@@ -175,7 +175,7 @@ func handleSignRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func handleResetUuidRequest(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("handleResetUuidRequest url:" + r.URL.Path + ", method:" + r.Method)
+	//fmt.Println("handleResetUuidRequest url:" + r.URL.Path + ", method:" + r.Method)
 	switch r.Method {
 	case "GET":
 		query := r.URL.Query()
@@ -199,7 +199,7 @@ func handleResetUuidRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleModifyPasswdRequest(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("handleModifyPasswdRequest url:" + r.URL.Path + ", method:" + r.Method)
+	//fmt.Println("handleModifyPasswdRequest url:" + r.URL.Path + ", method:" + r.Method)
 	switch r.Method {
 	case "POST":
 		r.ParseForm()
@@ -220,7 +220,7 @@ func handleModifyPasswdRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("handleBlackListRequest url:" + r.URL.Path + ", method:" + r.Method)
+	//fmt.Println("handleBlackListRequest url:" + r.URL.Path + ", method:" + r.Method)
 	switch r.Method {
 	case "GET":
 		query := r.URL.Query()
@@ -231,7 +231,7 @@ func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
 
 		unbanTarget := query.Get("unban")
 		if unbanTarget != "" {
-			fmt.Println("(" + userName + ")Req unban:" + unbanTarget)
+			//fmt.Println("(" + userName + ")Req unban:" + unbanTarget)
 			m_mindustryServer.execCmd("unban " + unbanTarget)
 			Response(w, RSP_SUCC)
 			return
@@ -250,7 +250,7 @@ func handleBlackListRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleSignList(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("handleSignList url:" + r.URL.Path)
+	//fmt.Println("handleSignList url:" + r.URL.Path)
 
 	switch r.Method {
 	case "GET":
@@ -319,7 +319,7 @@ func responseMessageQuery(m *MessageManager, query string, w http.ResponseWriter
 	if error == nil {
 		ret = m.getMessage(begin)
 	} else {
-		fmt.Println("chatMessage para invalid:" + query)
+		//fmt.Println("chatMessage para invalid:" + query)
 	}
 	output, err1 := json.MarshalIndent(ret, "", "\t\t")
 	if err1 != nil {
@@ -373,7 +373,7 @@ func handleMaintainRequest(w http.ResponseWriter, r *http.Request) {
 			if error == nil {
 				ret = m_mindustryServer.getUserListForWeb(isOnline == 1)
 			} else {
-				fmt.Println("userQuery para invalid:" + userQuery)
+				//fmt.Println("userQuery para invalid:" + userQuery)
 			}
 			output, err1 := json.MarshalIndent(ret, "", "\t\t")
 			if err1 != nil {
@@ -386,7 +386,7 @@ func handleMaintainRequest(w http.ResponseWriter, r *http.Request) {
 
 		banTarget := query.Get("ban")
 		if banTarget != "" {
-			fmt.Println("(" + userName + ")Req ban:" + banTarget)
+			//fmt.Println("(" + userName + ")Req ban:" + banTarget)
 			m_mindustryServer.execCmd("ban id " + banTarget)
 			Response(w, RSP_SUCC)
 			return
@@ -396,7 +396,7 @@ func handleMaintainRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("handleAdminsRequest url:" + r.URL.Path)
+	//fmt.Println("handleAdminsRequest url:" + r.URL.Path)
 	switch r.Method {
 	case "GET":
 		query := r.URL.Query()
@@ -445,7 +445,7 @@ func handleAdminsRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func handleStatusRequest(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("handleStatusRequest url:" + r.URL.Path)
+	//fmt.Println("handleStatusRequest url:" + r.URL.Path)
 	switch r.Method {
 	case "GET":
 		m_mindustryServer.updateStatus()
@@ -474,7 +474,7 @@ func getDirFilesCnt(requestUrl string) int {
 }
 func handleFilesRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
-	fmt.Println("request files url:" + r.URL.Path)
+	//fmt.Println("request files url:" + r.URL.Path)
 	requestUrl := getRequestFileUrl(r)
 	if requestUrl == "" {
 		Response(w, "invalid url")
@@ -486,7 +486,7 @@ func handleFilesRequest(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		fileCnt := getDirFilesCnt(requestUrl)
 		if fileCnt > m_mindustryServer.maxMapCount {
-			fmt.Printf("fileCnt(%d) > maxMapCount(%d)!\n", fileCnt, m_mindustryServer.maxMapCount)
+			//fmt.Printf("fileCnt(%d) > maxMapCount(%d)!\n", fileCnt, m_mindustryServer.maxMapCount)
 			Response(w, "file is full")
 			return
 		}
@@ -514,12 +514,12 @@ func getFileModTime(path string) string {
 }
 
 func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (err error) {
-	//fmt.Println("GET: " + r.URL.Path)
+	////fmt.Println("GET: " + r.URL.Path)
 	query := r.URL.Query()
 	delFile := query.Get("delete")
 	downFile := query.Get("download")
 	if downFile != "" {
-		fmt.Println("download: " + downFile)
+		//fmt.Println("download: " + downFile)
 		file := url2path[requestUrl] + downFile
 		if exist, _ := exists(file); !exist {
 			http.NotFound(w, r)
@@ -532,10 +532,10 @@ func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (
 			return
 		}
 
-		fmt.Println("DELETE: " + url2path[requestUrl] + delFile)
+		//fmt.Println("DELETE: " + url2path[requestUrl] + delFile)
 		err = os.Remove(url2path[requestUrl] + delFile)
 		if err != nil {
-			fmt.Println(err)
+			//fmt.Println(err)
 			Response(w, "file del fail")
 		} else {
 			Response(w, RSP_SUCC)
@@ -573,7 +573,7 @@ func handleFilesGet(requestUrl string, w http.ResponseWriter, r *http.Request) (
 }
 
 func handlePost(requestUrl string, w http.ResponseWriter, r *http.Request) (err error) {
-	fmt.Println("POST: " + r.URL.Path)
+	//fmt.Println("POST: " + r.URL.Path)
 	r.ParseForm()
 	userName := r.Form.Get("username")
 	sessionId := r.Form.Get("sessionid")
@@ -583,14 +583,14 @@ func handlePost(requestUrl string, w http.ResponseWriter, r *http.Request) (err 
 	r.ParseMultipartForm(32 << 20)
 	file, handler, err := r.FormFile("file")
 	if err != nil {
-		fmt.Println(err)
+		//fmt.Println(err)
 		return
 	}
 	defer file.Close()
 	fmt.Fprintf(w, "%v", handler.Header)
 	f, err := os.OpenFile(url2path[requestUrl]+handler.Filename, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
-		fmt.Println(err)
+		//fmt.Println(err)
 		return
 	}
 	defer f.Close()
@@ -599,10 +599,10 @@ func handlePost(requestUrl string, w http.ResponseWriter, r *http.Request) (err 
 }
 func handleDelete(requestUrl string, w http.ResponseWriter, r *http.Request) (err error) {
 	name := path.Base(r.URL.Path)
-	fmt.Println("DELETE: " + r.URL.Path + "," + name)
+	//fmt.Println("DELETE: " + r.URL.Path + "," + name)
 	err = os.Remove(url2path[requestUrl] + name)
 	if err != nil {
-		fmt.Println(err)
+		//fmt.Println(err)
 	}
 	w.WriteHeader(200)
 	return

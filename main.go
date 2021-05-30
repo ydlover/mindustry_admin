@@ -9,10 +9,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/emirpasic/gods/maps/linkedhashmap"
-	"github.com/kortemy/lingo"
-	"github.com/larspensjo/config"
-	"github.com/robfig/cron"
 	"io"
 	"io/ioutil"
 	"log"
@@ -28,6 +24,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/emirpasic/gods/maps/linkedhashmap"
+	"github.com/kortemy/lingo"
+	"github.com/larspensjo/config"
+	"github.com/robfig/cron"
 )
 
 var _VERSION_ = "1.0"
@@ -274,6 +275,7 @@ type Mindustry struct {
 	startTime              int64
 	chartMessages          *MessageManager
 	messageBoard           *MessageManager
+	aim                    *Aim
 }
 
 func (this *Mindustry) getAdminList(adminList []Admin, isShowWarn bool) string {
@@ -622,7 +624,12 @@ func (this *Mindustry) loadConfig() {
 				this.maxMapCount = optionIntValue
 				log.Printf("[ini]maxMapCount:%d\n", this.maxMapCount)
 			}
-
+			optionValue, err = cfg.String("server", "aimEnabled")
+			if err == nil {
+				if optionValue == "false" {
+					this.aim.runJs("aim_enabled=false")
+				}
+			}
 			optionValue, err = cfg.String("server", "mode")
 			if err == nil {
 				if optionValue != "none" && optionValue != "" && checkMode(optionValue) {
@@ -685,6 +692,7 @@ func (this *Mindustry) initStatus() {
 	this.isNeedRestartForUpdate = false
 }
 func (this *Mindustry) init() {
+	this.aim = new(Aim)
 	this.chartMessages = new(MessageManager)
 	this.chartMessages.init(MAX_MESSAGE_CACHE)
 	this.messageBoard = new(MessageManager)
@@ -823,8 +831,12 @@ func (this *Mindustry) execCommand(commandName string, params []string) error {
 			}
 			log.Printf(line)
 			if strings.Contains(line, "java.lang.RuntimeException") {
+
 				log.Printf("server crash, force reboot!\n")
 				this.serverIsRun = false
+
+				log.Printf("server crash!")
+
 			}
 		}
 	}()
@@ -1237,6 +1249,7 @@ func (this *Mindustry) proc_host(uuid string, userName string, userInput string,
 		this.execCmd("stop")
 		time.Sleep(time.Duration(5) * time.Second)
 		this.execCmd("host " + mapName + " " + inputMode)
+		this.execCmd("js isHost=null")
 	}
 	return true
 }
@@ -1859,7 +1872,6 @@ func getUserByOutput(key string, cmdBody string) (string, string, bool) {
 	if index < 0 {
 		return "", "", false
 	}
-
 	userName := strings.TrimSpace(cmdBody[:index])
 	uuidInfo := strings.TrimSpace(cmdBody[index:])
 	lIndex := strings.Index(uuidInfo, "[")
@@ -1982,6 +1994,13 @@ func (this *Mindustry) output(line string) {
 		}
 		return
 	}
+	if strings.HasPrefix(cmdBody, "[none/base.js]: userinfo ") {
+		this.aim.save(cmdBody[len("[none/base.js]: userinfo "):], "userinfo")
+	}else if strings.HasPrefix(cmdBody, "[none/base.js]: config ") {
+		this.aim.save(cmdBody[len("[none/base.js]: config "):], "config")
+	}else if strings.HasPrefix(cmdBody, "[none/base.js]: "){
+	    this.aim.printEvent(cmdBody[len("[none/base.js]: "):])
+	}
 	waveInfo := MAP_WAVE_REG.FindStringSubmatch(cmdBody)
 	if waveInfo != nil {
 		this.gameStatus.Map = waveInfo[1]
@@ -2039,6 +2058,8 @@ func (this *Mindustry) output(line string) {
 
 	if index > -1 && !strings.HasPrefix(cmdBody, "Server:") {
 		userName := strings.TrimSpace(cmdBody[:index])
+		repl := regexp.MustCompile("/\\[LV\\.[0-9]]\\|/i")
+		userName = repl.ReplaceAllString(userName, "")
 		uuid := this.getUserId(userName)
 		if uuid == "" {
 			//log.Printf("%s invalid user,vote invalid\n", userName)
@@ -2065,7 +2086,7 @@ func (this *Mindustry) output(line string) {
 		}
 	}
 
-	if strings.HasSuffix(cmdBody, "]") && strings.Index(cmdBody, USER_CONNECTED_KEY) > -1 {
+	if strings.HasSuffix(cmdBody, "]") && strings.Index(cmdBody,USER_CONNECTED_KEY) > -1 {
 		this.timeoutCnt = 0
 		userName, uuid, isSucc := getUserByOutput(USER_CONNECTED_KEY, cmdBody)
 		if !isSucc {
@@ -2094,7 +2115,7 @@ func (this *Mindustry) output(line string) {
 
 	} else if strings.Index(cmdBody, USER_DISCONNECTED_KEY) > -1 {
 		this.timeoutCnt = 0
-		userName, uuid, isSucc := getUserByOutput(USER_DISCONNECTED_KEY, cmdBody)
+		userName, uuid, isSucc := getUserByOutput(USER_DISCONNECTED_KEY,cmdBody)
 		if !isSucc {
 			log.Printf("[%s] invalid\n", cmdBody)
 			return
@@ -2124,6 +2145,8 @@ func (this *Mindustry) output(line string) {
 			this.firstIsStart = false
 			this.gameStatus.Running = "true"
 		}
+		this.aim.init(this)
+		this.aim.AimInit()
 		this.serverIsRun = true
 		this.offlineAllUser()
 	}
@@ -2145,12 +2168,14 @@ func (this *Mindustry) run() {
 			para = inPara
 		}
 		this.execCommand("java", para)
+
 		if this.serverIsStart {
 			log.Printf("server crash,wait(10s) reboot!\n")
 			time.Sleep(time.Duration(10) * time.Second)
 		} else {
 			break
 		}
+
 	}
 }
 func (this *Mindustry) isPermitMapModify() bool {
